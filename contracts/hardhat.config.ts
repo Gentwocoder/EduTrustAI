@@ -7,13 +7,27 @@ const localSolc = fileURLToPath(new URL("./node_modules/solc/soljson.js", import
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthers],
   solidity: {
-    version: "0.8.28",
-    path: localSolc,
-    preferWasm: true,
-    settings: {
-      // BOT Chain currently requires bytecode compatible with the Paris EVM target.
-      evmVersion: "paris",
-      optimizer: { enabled: true, runs: 200 },
+    profiles: {
+      default: {
+        version: "0.8.28",
+        path: localSolc,
+        preferWasm: true,
+        settings: {
+          // BOT Chain currently requires bytecode compatible with the Paris EVM target.
+          evmVersion: "paris",
+          optimizer: { enabled: true, runs: 200 },
+        },
+      },
+      production: {
+        version: "0.8.28",
+        path: localSolc,
+        preferWasm: true,
+        settings: {
+          // Hardhat run uses the production profile, so this must be pinned separately.
+          evmVersion: "paris",
+          optimizer: { enabled: true, runs: 200 },
+        },
+      },
     },
   },
   networks: {

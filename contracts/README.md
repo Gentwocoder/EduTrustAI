@@ -19,13 +19,14 @@ npm test
 
 ## EVM compatibility
 
-The compiler target is explicitly pinned to `paris` for BOT Chain compatibility. Do not remove this setting: network-aware compilation against BOT Testnet can otherwise select a newer EVM target and fail with `Invalid EVM version requested`.
+Both Hardhat build profiles are explicitly pinned to `paris` for BOT Chain compatibility. `hardhat compile` uses the `default` profile, while `hardhat run` uses the `production` profile; both must specify the same compiler and EVM target. Do not remove either setting.
 
 After pulling a compiler-target update, clear cached artifacts before deployment:
 
 ```bash
 npx hardhat clean
 npm run compile
+npx hardhat --build-profile production compile --force
 ```
 
 ## Testnet deployment
