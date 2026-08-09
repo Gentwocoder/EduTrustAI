@@ -2,15 +2,14 @@
 
 AI-assisted academic credential issuance, integrity screening and instant public verification secured by BOT Chain.
 
-EduTrust AI is a standalone hackathon MVP. Institutions issue privacy-safe credential fingerprints on-chain; graduates share a verification link; employers confirm validity without contacting a registrar; and an AI comparison flow highlights suspicious document alterations.
+EduTrust AI is a standalone hackathon MVP. Institutions issue privacy-safe credential fingerprints on-chain, and employers can confirm credential status without contacting a registrar.
 
 ## What is included
 
 - Premium responsive public product site
-- Public credential verification demo
-- Altered-document comparison demo
+- Live public credential verification against the deployed BOT Testnet registry
 - Institution credential dashboard
-- Issue and revoke credential interactions
+- Wallet-backed credential issuance
 - Privacy-focused Solidity registry
 - Role-based institution issuer permissions
 - BOT Chain testnet and Mainnet configuration
@@ -35,7 +34,7 @@ npm install
 npm run dev
 ```
 
-The public demo uses `EDU-2026-00128` as the valid sample credential. Open `/dashboard` for the institution issuance and revocation workflow.
+The public verifier reads the deployed registry contract and returns only canonical on-chain status. Open `/dashboard` to connect an authorised issuer wallet and submit an issuance transaction.
 
 ## Smart contract
 
@@ -54,11 +53,9 @@ BOT Chain is EVM-compatible, so the contract uses Solidity and Hardhat.
 
 Deployment instructions are in [`contracts/README.md`](contracts/README.md). Never commit a private key or seed phrase.
 
-The deployment tooling validates the BOT Chain ID and signer balance, prints contract and transaction explorer links, and requires an explicit confirmation flag before Mainnet deployment. Complete the Testnet rehearsal first.
-
 ## Current MVP boundary
 
-The browser flows use explicit demo data while the on-chain contract is production-shaped and tested. The next integration milestone connects the portal to the deployed registry, adds durable institutional records, generates real credential PDFs and QR codes, and connects OCR/AI document extraction.
+The verifier and issuance flow connect directly to BOT Testnet. Institutional profiles, private academic records, durable activity history, generated credential PDFs, QR codes and OCR/AI document extraction remain outside the current standalone MVP.
 
 ## Documentation
 
