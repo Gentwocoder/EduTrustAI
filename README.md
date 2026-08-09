@@ -54,6 +54,8 @@ BOT Chain is EVM-compatible, so the contract uses Solidity and Hardhat.
 
 Deployment instructions are in [`contracts/README.md`](contracts/README.md). Never commit a private key or seed phrase.
 
+The deployment tooling validates the BOT Chain ID and signer balance, prints contract and transaction explorer links, and requires an explicit confirmation flag before Mainnet deployment. Complete the Testnet rehearsal first.
+
 ## Current MVP boundary
 
 The browser flows use explicit demo data while the on-chain contract is production-shaped and tested. The next integration milestone connects the portal to the deployed registry, adds durable institutional records, generates real credential PDFs and QR codes, and connects OCR/AI document extraction.
