@@ -1,0 +1,8 @@
+node_modules/
+.npm-cache/
+.hardhat-cache/
+.hardhat-config/
+artifacts/
+cache/
+coverage/
+.env
