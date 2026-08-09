@@ -167,7 +167,6 @@ export function IssuerDashboard() {
           <nav className="space-y-1" aria-label="Institution portal">
             <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "overview" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("overview")}><NavIcon>⌂</NavIcon>Overview</button>
             <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "issue" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("issue")}><NavIcon>＋</NavIcon>Issue credential</button>
-            <Link className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="/#verification"><NavIcon>⌕</NavIcon>Public verifier</Link>
             <a className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href={registryExplorerUrl()} target="_blank" rel="noreferrer"><NavIcon>↗</NavIcon>BOT explorer</a>
           </nav>
 
