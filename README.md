@@ -2,7 +2,7 @@
 
 AI-assisted academic credential issuance, integrity screening and instant public verification secured by BOT Chain.
 
-EduTrust AI is a standalone hackathon MVP from Lenage Technologies. Institutions issue privacy-safe credential fingerprints on-chain; graduates share a verification link; employers confirm validity without contacting a registrar; and an AI comparison flow highlights suspicious document alterations.
+EduTrust AI is a standalone hackathon MVP. Institutions issue privacy-safe credential fingerprints on-chain; graduates share a verification link; employers confirm validity without contacting a registrar; and an AI comparison flow highlights suspicious document alterations.
 
 ## What is included
 

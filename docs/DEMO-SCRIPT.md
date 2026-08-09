@@ -33,4 +33,4 @@ Open the public site and explain that employers often wait days for manual acade
 
 ## 2:45–3:00 — Close
 
-Position EduTrust AI as a verification network that can plug into Lenage's existing School Management System and onboard real schools after the challenge.
+Position EduTrust AI as an independent verification network that can integrate with existing school management systems and onboard real schools after the challenge.

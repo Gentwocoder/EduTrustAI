@@ -120,7 +120,7 @@ export default function Home() {
 
       <footer>
         <a className="brand" href="#top"><span className="brand-mark">E</span><span>EduTrust <b>AI</b></span></a>
-        <p>A Lenage Technologies initiative · Built on BOT Chain</p>
+        <p>Independent credential verification · Built on BOT Chain</p>
         <span>© 2026 EduTrust AI</span>
       </footer>
     </main>
