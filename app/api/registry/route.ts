@@ -1,4 +1,4 @@
-import { Contract, JsonRpcProvider, id as hashText, isHexString } from "ethers";
+import { Contract, EventLog, JsonRpcProvider, id as hashText, isAddress, isHexString } from "ethers";
 import { BOT_TESTNET, REGISTRY_ABI, REGISTRY_ADDRESS } from "@/lib/registry";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,29 @@ export async function GET(request: Request) {
     const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, provider);
     const url = new URL(request.url);
     const credentialId = url.searchParams.get("credentialId")?.trim();
+    const issuer = url.searchParams.get("issuer")?.trim();
+
+    if (issuer) {
+      if (!isAddress(issuer)) {
+        return Response.json({ message: "A valid issuer wallet address is required." }, { status: 400 });
+      }
+
+      const filter = registry.filters.CredentialIssued(null, null, issuer);
+      const logs = await registry.queryFilter(filter, 0, "latest");
+      const activity = logs
+        .filter((log): log is EventLog => log instanceof EventLog)
+        .map((log) => ({
+          credentialIdHash: String(log.args.credentialIdHash),
+          documentHash: String(log.args.documentHash),
+          issuer: String(log.args.issuer),
+          issuedAt: Number(log.args.issuedAt),
+          transactionHash: log.transactionHash,
+          blockNumber: log.blockNumber,
+        }))
+        .reverse();
+
+      return Response.json({ activity });
+    }
 
     if (!credentialId) {
       const [network, code] = await Promise.all([
