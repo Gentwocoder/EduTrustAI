@@ -11,6 +11,8 @@ export default defineConfig({
     path: localSolc,
     preferWasm: true,
     settings: {
+      // BOT Chain currently requires bytecode compatible with the Paris EVM target.
+      evmVersion: "paris",
       optimizer: { enabled: true, runs: 200 },
     },
   },

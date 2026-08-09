@@ -17,6 +17,17 @@ npm run compile
 npm test
 ```
 
+## EVM compatibility
+
+The compiler target is explicitly pinned to `paris` for BOT Chain compatibility. Do not remove this setting: network-aware compilation against BOT Testnet can otherwise select a newer EVM target and fail with `Invalid EVM version requested`.
+
+After pulling a compiler-target update, clear cached artifacts before deployment:
+
+```bash
+npx hardhat clean
+npm run compile
+```
+
 ## Testnet deployment
 
 Deploy to Testnet before using Mainnet. Testnet BOT has no monetary value and is available from the official faucet.
