@@ -46,4 +46,22 @@ export default defineConfig({
       accounts: [configVariable("BOT_PRIVATE_KEY")],
     },
   },
+  verify: {
+    etherscan: {
+      // BOTScan ignores this value; Hardhat only requires it to be non-empty.
+      apiKey: "blockscout",
+    },
+  },
+  chainDescriptors: {
+    968: {
+      name: "BOT Chain Testnet",
+      blockExplorers: {
+        etherscan: {
+          name: "BOTScan",
+          url: "https://scan.bohr.life",
+          apiUrl: "https://scan.bohr.life/api",
+        },
+      },
+    },
+  },
 });
