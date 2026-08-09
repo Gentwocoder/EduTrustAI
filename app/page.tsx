@@ -29,9 +29,9 @@ export default function Home() {
       <section id="top" className="border-b border-slate-200 bg-white">
         <div className="mx-auto grid max-w-7xl gap-12 px-4 py-14 sm:px-6 sm:py-18 lg:grid-cols-[0.88fr_1.12fr] lg:items-center lg:px-8 lg:py-20">
           <div className="max-w-xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-200">
-              <span className="size-1.5 rounded-full bg-blue-600" /> Academic credential registry
-            </div>
+            <p className="mb-5 text-xs font-semibold uppercase tracking-[0.12em] text-blue-700">
+              Academic credential registry
+            </p>
             <h1 className="text-4xl font-semibold tracking-[-0.035em] text-slate-950 sm:text-5xl lg:text-[3.4rem] lg:leading-[1.06]">Verify academic records without waiting on the registrar.</h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-slate-600">EduTrust gives schools a controlled issuance workspace and gives employers a direct way to confirm credentials against an auditable BOT Chain record.</p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
