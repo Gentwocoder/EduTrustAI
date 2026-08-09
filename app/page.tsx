@@ -1,127 +1,123 @@
+import Link from "next/link";
+import { Brand } from "@/components/brand";
+import { RegistryOverview } from "@/components/registry-overview";
 import { VerificationDemo } from "@/components/verification-demo";
 
-const networkItems = [
-  { value: "BOT Chain", label: "Credential network" },
-  { value: "AI-assisted", label: "Fraud screening" },
-  { value: "Privacy-first", label: "No documents on-chain" },
+const workflow = [
+  { number: "01", title: "Institution issues", body: "An authorised officer creates the academic record and confirms the source document." },
+  { number: "02", title: "Fingerprint is registered", body: "EduTrust stores hashes, issuer identity and status on BOT Chain—not student files." },
+  { number: "03", title: "Third party verifies", body: "An employer checks the credential ID and receives a clear, auditable result." },
 ];
 
 export default function Home() {
   return (
-    <main>
-      <nav className="nav-shell" aria-label="Main navigation">
-        <a className="brand" href="#top" aria-label="EduTrust AI home">
-          <span className="brand-mark">E</span>
-          <span>EduTrust <b>AI</b></span>
-        </a>
-        <div className="nav-links">
-          <a href="#how-it-works">How it works</a>
-          <a href="#verification">Verify</a>
-          <a href="#institutions">For institutions</a>
-        </div>
-        <a className="nav-cta" href="/dashboard">Institution portal</a>
-      </nav>
-
-      <section className="hero" id="top">
-        <div className="orb orb-one" />
-        <div className="orb orb-two" />
-        <div className="hero-copy">
-          <div className="eyebrow"><span /> Built for trusted African education</div>
-          <h1>Academic credentials.<br /><em>Verified in seconds.</em></h1>
-          <p className="hero-lead">
-            EduTrust AI helps institutions issue tamper-evident credentials and
-            gives employers instant, privacy-safe verification powered by AI and BOT Chain.
-          </p>
-          <div className="hero-actions">
-            <a className="button button-primary" href="#verification">Verify a credential <span>→</span></a>
-            <a className="button button-ghost" href="/dashboard">Issue credentials</a>
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur-sm">
+        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
+          <a href="#top" aria-label="EduTrust AI home"><Brand /></a>
+          <div className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
+            <a className="transition hover:text-slate-950" href="#verification">Verify</a>
+            <a className="transition hover:text-slate-950" href="#how-it-works">How it works</a>
+            <a className="transition hover:text-slate-950" href="#institutions">Institutions</a>
           </div>
-          <div className="trust-note">
-            <div className="avatar-stack" aria-hidden="true">
-              <span>AO</span><span>KM</span><span>LN</span>
-            </div>
-            <p><strong>Designed for real institutions</strong><br />Secure, auditable and easy to adopt</p>
-          </div>
-        </div>
+          <Link className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="/dashboard">
+            Institution portal
+          </Link>
+        </nav>
+      </header>
 
-        <div className="hero-visual" aria-label="Example verified credential">
-          <div className="chain-badge"><span className="pulse" /> BOT Chain Mainnet</div>
-          <article className="credential-card">
-            <div className="credential-top">
-              <div className="school-seal">AU</div>
-              <div><strong>Atlas University</strong><small>Digital Academic Credential</small></div>
-              <span className="verified-pill">✓ Verified</span>
+      <section id="top" className="border-b border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-7xl gap-12 px-4 py-14 sm:px-6 sm:py-18 lg:grid-cols-[0.88fr_1.12fr] lg:items-center lg:px-8 lg:py-20">
+          <div className="max-w-xl">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-md bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-inset ring-blue-200">
+              <span className="size-1.5 rounded-full bg-blue-600" /> Academic credential registry
             </div>
-            <div className="credential-body">
-              <small>This certifies that</small>
-              <h2>Amara Okafor</h2>
-              <p>has successfully completed the requirements for</p>
-              <h3>B.Sc. Computer Science</h3>
-              <div className="credential-meta">
-                <div><small>Classification</small><strong>Second Class Upper</strong></div>
-                <div><small>Issued</small><strong>24 July 2026</strong></div>
-              </div>
+            <h1 className="text-4xl font-semibold tracking-[-0.035em] text-slate-950 sm:text-5xl lg:text-[3.4rem] lg:leading-[1.06]">Verify academic records without waiting on the registrar.</h1>
+            <p className="mt-5 max-w-lg text-base leading-7 text-slate-600">EduTrust gives schools a controlled issuance workspace and gives employers a direct way to confirm credentials against an auditable BOT Chain record.</p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <a className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="#verification">Verify a credential</a>
+              <Link className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="/dashboard">Open issuer workspace</Link>
             </div>
-            <div className="credential-footer">
-              <div className="fake-qr" aria-label="QR verification code">
-                {Array.from({ length: 49 }, (_, index) => <i key={index} className={(index * 7 + index % 5) % 3 === 0 ? "filled" : ""} />)}
-              </div>
-              <div><small>Credential ID</small><strong>EDU-2026-00128</strong><span>Anchored on BOT Chain</span></div>
-              <div className="shield">✓</div>
+            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 border-t border-slate-200 pt-5 text-xs text-slate-600">
+              <span className="flex items-center gap-2"><b className="text-emerald-600">✓</b> No student files on-chain</span>
+              <span className="flex items-center gap-2"><b className="text-emerald-600">✓</b> Role-controlled issuance</span>
+              <span className="flex items-center gap-2"><b className="text-emerald-600">✓</b> Permanent audit status</span>
             </div>
-          </article>
-          <div className="ai-card">
-            <span className="ai-icon">✦</span>
-            <div><small>AI integrity scan</small><strong>No alterations detected</strong></div>
-            <span className="score">98%</span>
+          </div>
+
+          <div id="verification" className="scroll-mt-24">
+            <div className="mb-3 flex items-center justify-between px-1 text-xs text-slate-500">
+              <span className="font-medium">Public verification service</span>
+              <span className="font-mono">BOT Testnet · 968</span>
+            </div>
+            <VerificationDemo />
           </div>
         </div>
       </section>
 
-      <section className="network-strip" aria-label="Platform highlights">
-        {networkItems.map((item) => (
-          <div key={item.value}><strong>{item.value}</strong><span>{item.label}</span></div>
-        ))}
+      <section className="border-b border-slate-200 bg-slate-50" aria-label="Service metrics">
+        <RegistryOverview />
       </section>
 
-      <section className="section-shell process" id="how-it-works">
-        <div className="section-heading">
-          <span className="kicker">One trusted record</span>
-          <h2>From issuance to verification,<br />every step is accountable.</h2>
-          <p>The original document stays private. Only its cryptographic fingerprint and status are recorded on-chain.</p>
-        </div>
-        <div className="process-grid">
-          <article><span>01</span><div className="step-icon">⌁</div><h3>Institution issues</h3><p>An authorised school creates a signed digital credential from verified student records.</p></article>
-          <article><span>02</span><div className="step-icon">◇</div><h3>BOT Chain anchors</h3><p>A tamper-evident fingerprint, issuer and status are recorded without exposing student data.</p></article>
-          <article><span>03</span><div className="step-icon">✦</div><h3>AI verifies</h3><p>Upload or scan a credential. AI compares its contents and flags suspicious changes instantly.</p></article>
-        </div>
-      </section>
-
-      <section className="verify-section" id="verification">
-        <div className="section-shell verify-layout">
-          <div className="verify-copy">
-            <span className="kicker">Try the live flow</span>
-            <h2>Trust the record,<br />not the paperwork.</h2>
-            <p>Enter the demo credential ID to see the public verification experience an employer or institution receives.</p>
-            <div className="privacy-callout"><span>⌾</span><div><strong>Privacy by design</strong><p>Student documents and personal records are never published to the blockchain.</p></div></div>
+      <section id="how-it-works" className="scroll-mt-20 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8 lg:py-20">
+          <div className="grid gap-10 lg:grid-cols-[0.7fr_1.3fr]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">Operating model</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">One controlled record from issuance to verification.</h2>
+              <p className="mt-4 text-sm leading-6 text-slate-600">The system keeps identifiable student data with the institution and publishes only the evidence required to validate integrity and status.</p>
+            </div>
+            <ol className="grid gap-4 md:grid-cols-3">
+              {workflow.map((item) => (
+                <li className="rounded-xl border border-slate-200 bg-white p-5" key={item.number}>
+                  <span className="font-mono text-xs font-semibold text-blue-700">{item.number}</span>
+                  <h3 className="mt-8 text-sm font-semibold text-slate-900">{item.title}</h3>
+                  <p className="mt-2 text-xs leading-5 text-slate-600">{item.body}</p>
+                </li>
+              ))}
+            </ol>
           </div>
-          <VerificationDemo />
         </div>
       </section>
 
-      <section className="section-shell institution" id="institutions">
-        <div>
-          <span className="kicker">For schools and universities</span>
-          <h2>Issue once. Build trust everywhere.</h2>
-          <p>Reduce manual verification requests, protect your institution’s reputation and give every graduate a credential they can confidently share.</p>
+      <section className="border-y border-slate-200 bg-slate-50">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-8">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div><h2 className="text-sm font-semibold text-slate-950">What the public can verify</h2><p className="mt-1 text-xs text-slate-500">Available without signing in</p></div>
+              <span className="rounded-md bg-blue-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700">Public</span>
+            </div>
+            <ul className="mt-2 divide-y divide-slate-100 text-sm">
+              {["Issuing institution", "Qualification and issue date", "Credential lifecycle status", "Document fingerprint match"].map((item) => <li className="flex items-center justify-between py-3 text-slate-700" key={item}><span>{item}</span><span className="text-emerald-600">✓</span></li>)}
+            </ul>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div><h2 className="text-sm font-semibold text-slate-950">What remains private</h2><p className="mt-1 text-xs text-slate-500">Retained by the institution</p></div>
+              <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">Restricted</span>
+            </div>
+            <ul className="mt-2 divide-y divide-slate-100 text-sm">
+              {["Original certificate PDF", "Student email and contact details", "Full academic transcript", "Internal registrar notes"].map((item) => <li className="flex items-center justify-between py-3 text-slate-700" key={item}><span>{item}</span><span className="text-slate-400">—</span></li>)}
+            </ul>
+          </div>
         </div>
-        <a className="button button-dark" href="/dashboard">Open institution portal <span>→</span></a>
       </section>
 
-      <footer>
-        <a className="brand" href="#top"><span className="brand-mark">E</span><span>EduTrust <b>AI</b></span></a>
-        <p>Independent credential verification · Built on BOT Chain</p>
-        <span>© 2026 EduTrust AI</span>
+      <section id="institutions" className="scroll-mt-20 bg-white">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-start justify-between gap-6 rounded-xl border border-slate-200 bg-slate-950 px-6 py-8 sm:px-8 lg:flex-row lg:items-center">
+            <div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-300">Institution access</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Manage issuance from a focused registrar workspace.</h2><p className="mt-2 text-sm leading-6 text-slate-300">Review registry totals, issue new credentials, revoke compromised records and inspect the chain payload before signing.</p></div>
+            <Link className="inline-flex shrink-0 items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-950" href="/dashboard">Open institution portal <span className="ml-2" aria-hidden="true">→</span></Link>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          <Brand />
+          <p>Independent credential verification · Built on BOT Chain</p>
+          <p>© 2026 EduTrust AI</p>
+        </div>
       </footer>
     </main>
   );
