@@ -91,8 +91,7 @@ export function VerificationDemo() {
             <p className="mt-0.5 text-xs text-slate-500">Read directly from the BOT Testnet registry</p>
           </div>
         </div>
-        <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold ring-1 ring-inset ${registryOnline === true ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : registryOnline === false ? "bg-red-50 text-red-700 ring-red-200" : "bg-slate-50 text-slate-600 ring-slate-200"}`}>
-          <span className={`size-1.5 rounded-full ${registryOnline === true ? "bg-emerald-500" : registryOnline === false ? "bg-red-500" : "bg-slate-400"}`} />
+        <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold ${registryOnline === true ? "border-emerald-200 bg-emerald-50 text-emerald-700" : registryOnline === false ? "border-red-200 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
           {registryOnline === true ? "Registry online" : registryOnline === false ? "Unavailable" : "Checking"}
         </span>
       </header>
