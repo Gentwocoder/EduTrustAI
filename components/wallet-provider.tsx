@@ -1,15 +1,15 @@
 "use client";
 
 import { createAppKit } from "@reown/appkit/react";
-import { EthersAdapter } from "@reown/appkit-adapter-ethers";
 import {
   BOT_APPKIT_NETWORKS,
   REOWN_PROJECT_ID,
   walletConnectionNetwork,
 } from "@/lib/appkit";
+import { CompatibleEthersAdapter } from "@/lib/compatible-ethers-adapter";
 
 createAppKit({
-  adapters: [new EthersAdapter()],
+  adapters: [new CompatibleEthersAdapter()],
   networks: BOT_APPKIT_NETWORKS,
   defaultNetwork: walletConnectionNetwork,
   allowUnsupportedChain: true,
