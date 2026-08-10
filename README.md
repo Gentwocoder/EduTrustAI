@@ -4,7 +4,7 @@ Privacy-preserving academic credential issuance, revocation, and public verifica
 
 EduTrust AI is a standalone RWA credential-registry MVP for schools, registrars, employers, admissions teams, graduates, and other organisations that need to prove or check an academic credential without publishing the underlying student record. Institutions anchor one-way fingerprints and lifecycle status on-chain; anyone can verify the resulting record without creating an account or contacting the registrar.
 
-> The current MVP uses deterministic cryptographic hashing and BOT Chain as its trust layer. AI/OCR-assisted document extraction is a future extension, not a dependency of the live verification flow.
+> The trust decision remains deterministic: BOT Chain status and cryptographic fingerprints are canonical. An optional browser-only OCR assistant helps registrars inspect visible document fields before issuance, but it cannot issue or authenticate a credential.
 
 ## Live project
 
@@ -33,9 +33,11 @@ EduTrust addresses both sides of that problem:
 1. An authorised institution opens the issuer workspace and connects an EVM wallet.
 2. The issuer selects BOT Chain Mainnet or Testnet, enters the institution-issued credential ID, and selects the source PDF or image.
 3. The browser computes a SHA-256 fingerprint of the file locally. The file is never uploaded by the interface.
-4. The credential ID is converted to a `bytes32` Keccak-256 hash with `ethers.id`.
-5. The wallet signs `issueCredential(credentialIdHash, documentHash)` and pays BOT for gas.
-6. The confirmed transaction appears in the wallet's activity view and can be inspected on BOTScan.
+4. The issuer may run a private OCR review that checks visible IDs, dates, institution names, qualification text, and placeholder language entirely in the browser.
+5. A human reviews the findings and decides whether to continue.
+6. The credential ID is converted to a `bytes32` Keccak-256 hash with `ethers.id`.
+7. The wallet signs `issueCredential(credentialIdHash, documentHash)` and pays BOT for gas.
+8. The confirmed transaction appears in the wallet's activity view and can be inspected on BOTScan.
 
 ### 2. Verify a credential
 
@@ -56,6 +58,19 @@ Public verification is read-only and does not require a wallet, account, or tran
 
 Every revocation caller must have `ISSUER_ROLE`. Within that set, only the original issuer or a wallet that also has `DEFAULT_ADMIN_ROLE` can revoke the credential. The human-readable reason is not sent on-chain or stored by the application.
 
+
+
+### Private document review
+
+The single-credential issuance form includes an optional local review. When the issuer starts it:
+
+1. Text-based PDFs are read directly in the browser.
+2. Scanned PDF pages and images are processed with browser-side OCR.
+3. EduTrust checks for the entered credential ID, an institution name, a qualification, an issue date, and obvious placeholder/editing language.
+4. The interface returns advisory findings and an OCR confidence score.
+5. An authorised human decides whether to issue the record.
+
+For performance, PDF review is limited to the first three pages and files up to 12 MB. No document or extracted text is sent to an EduTrust API, database, blockchain, or AI provider. If the browser cannot load the OCR engine, issuance still supports manual review and local SHA-256 hashing.
 
 ### 4. Share or bulk issue credentials
 
@@ -106,6 +121,7 @@ The blockchain is the source of truth for credential existence, issuer, fingerpr
 - Broad EVM wallet connection through Reown AppKit
 - Mainnet/Testnet switching before transaction signing
 - Local SHA-256 hashing of PDF and image files
+- Private browser-only OCR review with human-readable pre-issuance findings
 - Wallet-backed credential issuance
 - CSV bulk issuance for up to 100 prepared credential/document fingerprints
 - Transaction preview showing chain, issuer, contract, and document fingerprint
@@ -186,10 +202,10 @@ The contract is written in Solidity `0.8.28`, uses OpenZeppelin `AccessControl`,
 | Location | Data |
 | --- | --- |
 | BOT Chain | Hashed credential ID, SHA-256 document fingerprint, issuer address, timestamps, status, and hashed revocation reason in the event log |
-| Browser memory | Selected source file while its fingerprint is calculated; plaintext revocation reason while the dialog is open |
+| Browser memory | Selected source file and temporary extracted OCR text while the review is open; plaintext revocation reason while the dialog is open |
 | Browser local storage | Selected network and wallet/network-scoped activity labels used to restore readable credential IDs |
 | Registry API | Transient RPC results returned to the requesting client; no application database writes |
-| Never uploaded or written on-chain | Student name, grade, email, contact details, transcript, source PDF/image, and internal registrar notes |
+| Never uploaded or written on-chain | Student name, grade, email, contact details, transcript, source PDF/image, extracted OCR text, and internal registrar notes |
 
 The current MVP has no required application database. Chain state and events are canonical; local storage is a display enhancement, not the credential record.
 
@@ -213,6 +229,7 @@ Email/social login, smart-account abstraction, swaps, on-ramp, send/receive cont
 | --- | --- |
 | Web application | Next.js 16, React 19, TypeScript |
 | UI | Tailwind CSS 4, custom responsive components |
+| Private document review | Tesseract.js 7 and PDF.js 6 loaded on demand in the browser |
 | Wallet connectivity | Reown AppKit, WalletConnect, ethers 6 |
 | Registry API | Next.js Route Handler, ethers JSON-RPC provider |
 | Smart contract | Solidity 0.8.28, OpenZeppelin AccessControl |
@@ -433,6 +450,8 @@ Changes pushed to the connected production branch can be deployed automatically 
 ## Security considerations
 
 - Never commit a private key, seed phrase, keystore password, or funded-wallet secret.
+- Private OCR is advisory. It does not prove authenticity, replace registrar approval, or change the canonical on-chain verification result.
+- OCR and PDF engine code/language data are downloaded on demand from pinned public CDN versions; the document itself is processed locally and is not transmitted.
 - Confirm the selected BOT Chain network and registry address in the transaction preview before signing.
 - Only wallets granted `ISSUER_ROLE` can issue credentials.
 - Revocation requires `ISSUER_ROLE`; the caller must also be the original issuer or hold `DEFAULT_ADMIN_ROLE`.
@@ -448,6 +467,7 @@ Working today:
 - verified institution profile resolution for reviewed issuer wallets
 - QR verification links that preserve the credential hash and network
 - CSV bulk issuance with per-row progress and retryable failures
+- private OCR-assisted review before single credential issuance
 - BOT Chain Mainnet and Testnet registry reads
 - wallet-authorised issuance and revocation
 - public status and fingerprint verification
@@ -461,7 +481,7 @@ Future production extensions:
 - encrypted institutional database and private object storage
 - student/graduate delivery portal
 - generated credential PDFs and selective disclosure
-- privacy-approved AI/OCR extraction and human-readable document-difference explanations
+- multilingual OCR packs and advanced local document-difference explanations
 - registrar approval workflows and school-system integrations
 - decentralised or redundant RPC/indexing infrastructure
 - independent smart-contract audit, operational monitoring, and incident procedures
