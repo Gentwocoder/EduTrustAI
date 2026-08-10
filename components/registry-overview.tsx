@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useBotNetwork } from "@/components/network-provider";
 import { REGISTRY_ADDRESS, registryExplorerUrl } from "@/lib/registry";
+import { ExternalLinkIcon } from "@/components/icons";
 
 type RegistryHealth = {
   available: boolean;
@@ -73,11 +74,11 @@ export function RegistryOverview() {
         <div className="min-h-32 px-5 py-6 sm:px-7" key={item.label}>
           <span className="block text-xs font-semibold text-slate-600">{item.label}</span>
           {item.href ? (
-            <a className={`mt-2 block text-lg font-semibold tracking-tight hover:text-blue-700 ${item.tone}`} href={item.href} target="_blank" rel="noreferrer">{item.value} ↗</a>
+            <a className={`mt-2 inline-flex items-center gap-2 text-lg font-semibold tracking-tight hover:text-blue-700 ${item.tone}`} href={item.href} target="_blank" rel="noreferrer">{item.value} <ExternalLinkIcon className="size-4" /></a>
           ) : (
             <strong className={`mt-2 block text-lg font-semibold tracking-tight ${item.tone}`}>{item.value}</strong>
           )}
-          <span className="mt-1 block text-[11px] leading-4 text-slate-500">{item.detail}</span>
+          <span className="mt-1 block text-xs leading-5 text-slate-500">{item.detail}</span>
         </div>
       ))}
     </div>
