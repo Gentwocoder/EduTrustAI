@@ -1,10 +1,38 @@
 import { Contract, EventLog, JsonRpcProvider, id as hashText, isAddress, isHexString } from "ethers";
-import { BOT_NETWORKS, DEFAULT_NETWORK_KEY, isBotNetworkKey, REGISTRY_ABI, REGISTRY_ADDRESS } from "@/lib/registry";
+import {
+  BOT_NETWORKS,
+  DEFAULT_ADMIN_ROLE,
+  DEFAULT_NETWORK_KEY,
+  ISSUER_ROLE,
+  isBotNetworkKey,
+  REGISTRY_ABI,
+  REGISTRY_ADDRESS,
+} from "@/lib/registry";
 
 export const dynamic = "force-dynamic";
 
 function credentialStatus(status: number) {
   return status === 1 ? "valid" : status === 2 ? "revoked" : "unknown";
+}
+
+type IssuerRoleEvent = {
+  account: string;
+  changedBy: string;
+  transactionHash: string;
+  blockNumber: number;
+  logIndex: number;
+  active: boolean;
+};
+
+function roleEvent(log: EventLog, active: boolean): IssuerRoleEvent {
+  return {
+    account: String(log.args.account),
+    changedBy: String(log.args.sender),
+    transactionHash: log.transactionHash,
+    blockNumber: log.blockNumber,
+    logIndex: log.index,
+    active,
+  };
 }
 
 export async function GET(request: Request) {
@@ -25,6 +53,68 @@ export async function GET(request: Request) {
     const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, provider);
     const credentialId = url.searchParams.get("credentialId")?.trim();
     const issuer = url.searchParams.get("issuer")?.trim();
+    const account = url.searchParams.get("account")?.trim();
+    const rolesRequested = url.searchParams.get("roles") === "true";
+
+    if (rolesRequested) {
+      if (!account || !isAddress(account)) {
+        return Response.json({ message: "Connect a valid wallet to check registry access." }, { status: 400 });
+      }
+
+      const [isAdmin, isIssuer, grantedLogs, revokedLogs] = await Promise.all([
+        registry.hasRole(DEFAULT_ADMIN_ROLE, account),
+        registry.hasRole(ISSUER_ROLE, account),
+        registry.queryFilter(
+          registry.filters.RoleGranted(ISSUER_ROLE),
+          selectedNetwork.deploymentBlock,
+          "latest",
+        ),
+        registry.queryFilter(
+          registry.filters.RoleRevoked(ISSUER_ROLE),
+          selectedNetwork.deploymentBlock,
+          "latest",
+        ),
+      ]);
+
+      const history = [
+        ...grantedLogs
+          .filter((log): log is EventLog => log instanceof EventLog)
+          .map((log) => roleEvent(log, true)),
+        ...revokedLogs
+          .filter((log): log is EventLog => log instanceof EventLog)
+          .map((log) => roleEvent(log, false)),
+      ].sort((left, right) => (
+        left.blockNumber - right.blockNumber || left.logIndex - right.logIndex
+      ));
+
+      const latestByAccount = new Map<string, IssuerRoleEvent>();
+      for (const item of history) {
+        latestByAccount.set(item.account.toLowerCase(), item);
+      }
+
+      const issuerCandidates = [...latestByAccount.values()].filter((item) => item.active);
+      const issuerChecks = await Promise.all(
+        issuerCandidates.map(async (item) => ({
+          ...item,
+          active: Boolean(await registry.hasRole(ISSUER_ROLE, item.account)),
+        })),
+      );
+
+      const issuers = issuerChecks
+        .filter((item) => item.active)
+        .sort((left, right) => right.blockNumber - left.blockNumber);
+
+      return Response.json({
+        account: {
+          address: account,
+          isAdmin: Boolean(isAdmin),
+          isIssuer: Boolean(isIssuer),
+        },
+        issuers,
+        network: selectedNetwork.name,
+        networkKey: selectedNetwork.key,
+      });
+    }
 
     if (issuer) {
       if (!isAddress(issuer)) {
