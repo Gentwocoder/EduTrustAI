@@ -4,22 +4,19 @@ import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { BrowserProvider, Contract, id as hashText, sha256 } from "ethers";
+import {
+  useAppKit,
+  useAppKitAccount,
+  useAppKitNetwork,
+  useAppKitProvider,
+  useDisconnect,
+  type Provider,
+} from "@reown/appkit/react";
 import { Brand } from "@/components/brand";
 import { useBotNetwork } from "@/components/network-provider";
 import { NetworkSwitcher } from "@/components/network-switcher";
+import { BOT_APPKIT_NETWORK_BY_KEY } from "@/lib/appkit";
 import { REGISTRY_ABI, REGISTRY_ADDRESS, registryExplorerUrl, type BotNetworkKey } from "@/lib/registry";
-
-type EthereumProvider = {
-  request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown>;
-  on?(event: "accountsChanged", listener: (accounts: string[]) => void): void;
-  removeListener?(event: "accountsChanged", listener: (accounts: string[]) => void): void;
-};
-
-declare global {
-  interface Window {
-    ethereum?: EthereumProvider;
-  }
-}
 
 type Activity = {
   credentialId?: string;
@@ -106,8 +103,13 @@ function mergeActivity(local: Activity[], chain: ChainActivity[]) {
 
 export function IssuerDashboard() {
   const { network, networkKey } = useBotNetwork();
+  const { open } = useAppKit();
+  const { address, isConnected } = useAppKitAccount({ namespace: "eip155" });
+  const { walletProvider } = useAppKitProvider<Provider>("eip155");
+  const { switchNetwork } = useAppKitNetwork();
+  const { disconnect } = useDisconnect();
+  const account = address ?? "";
   const [view, setView] = useState<"overview" | "issue">("overview");
-  const [account, setAccount] = useState("");
   const [documentHash, setDocumentHash] = useState("");
   const [fileName, setFileName] = useState("");
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -118,24 +120,6 @@ export function IssuerDashboard() {
   const [revokeTarget, setRevokeTarget] = useState<Activity | null>(null);
   const [revocationReason, setRevocationReason] = useState("");
   const [revoking, setRevoking] = useState(false);
-
-  useEffect(() => {
-    const ethereum = window.ethereum;
-    if (!ethereum) return;
-
-    const handleAccountsChanged = (accounts: string[]) => {
-      setAccount(accounts[0] ?? "");
-    };
-
-    ethereum.request({ method: "eth_accounts" })
-      .then((accounts) => {
-        handleAccountsChanged(accounts as string[]);
-      })
-      .catch(() => undefined);
-    ethereum.on?.("accountsChanged", handleAccountsChanged);
-
-    return () => ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -177,84 +161,45 @@ export function IssuerDashboard() {
     };
   }, [account, networkKey]);
 
-  async function getSigner(requestSelection = false) {
-    if (!window.ethereum) {
-      throw new Error("Install MetaMask or another EVM wallet to issue credentials.");
+  async function getSigner() {
+    if (!walletProvider || !isConnected || !account) {
+      await open({ view: "Connect", namespace: "eip155" });
+      throw new Error("Connect an EVM wallet, then submit the transaction again.");
     }
 
-    if (requestSelection) {
-      try {
-        await window.ethereum.request({
-          method: "wallet_requestPermissions",
-          params: [{ eth_accounts: {} }],
-        });
-      } catch (error) {
-        const code = (error as { code?: number }).code;
-        if (code !== -32601) throw error;
-        await window.ethereum.request({ method: "eth_requestAccounts" });
-      }
-    }
-
-    try {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: network.chainIdHex }],
-      });
-    } catch (error) {
-      const code = (error as { code?: number }).code;
-      if (code !== 4902) throw error;
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [{
-          chainId: network.chainIdHex,
-          chainName: network.name,
-          nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
-          rpcUrls: [network.rpcUrl],
-          blockExplorerUrls: [network.explorerUrl],
-        }],
-      });
-    }
-
-    await window.ethereum.request({ method: "eth_requestAccounts" });
-    const provider = new BrowserProvider(window.ethereum);
+    await switchNetwork(BOT_APPKIT_NETWORK_BY_KEY[networkKey]);
+    const provider = new BrowserProvider(walletProvider);
     const signer = await provider.getSigner();
-    const address = await signer.getAddress();
-    setAccount(address);
     return signer;
   }
 
-  async function connectWallet(requestSelection = true) {
+  async function connectWallet(manageExisting = false) {
     setConnecting(true);
     setNotice(null);
     try {
-      await getSigner(requestSelection);
+      if (manageExisting) {
+        await open({ view: "Account" });
+      } else {
+        await open({ view: "Connect", namespace: "eip155" });
+      }
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : "The wallet could not be connected." });
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : "The wallet selector could not be opened." });
     } finally {
       setConnecting(false);
     }
   }
 
   async function disconnectWallet() {
-    const ethereum = window.ethereum;
-    if (ethereum) {
-      try {
-        await ethereum.request({
-          method: "wallet_revokePermissions",
-          params: [{ eth_accounts: {} }],
-        });
-      } catch {
-        // Some wallets do not implement permission revocation. Clearing the
-        // application session still allows another account to be selected.
-      }
+    try {
+      await disconnect({ namespace: "eip155" });
+      setActivity([]);
+      setRevokeTarget(null);
+      setRevocationReason("");
+      setView("overview");
+      setNotice({ tone: "success", text: "Wallet disconnected from EduTrust." });
+    } catch (error) {
+      setNotice({ tone: "error", text: error instanceof Error ? error.message : "The wallet could not be disconnected." });
     }
-
-    setAccount("");
-    setActivity([]);
-    setRevokeTarget(null);
-    setRevocationReason("");
-    setView("overview");
-    setNotice({ tone: "success", text: "Wallet disconnected from EduTrust." });
   }
 
   async function selectDocument(file?: File) {
@@ -402,11 +347,11 @@ export function IssuerDashboard() {
             {account ? (
               <>
               <span className="hidden rounded-md bg-slate-100 px-2.5 py-2 font-mono text-[11px] font-semibold text-slate-700 sm:inline-flex">{shortValue(account, 6, 4)}</span>
-              <button className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-wait disabled:text-slate-400" onClick={() => connectWallet(true)} disabled={connecting}>{connecting ? "Opening wallet…" : "Switch wallet"}</button>
+              <button className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-wait disabled:text-slate-400" onClick={() => connectWallet(true)} disabled={connecting}>{connecting ? "Opening wallet…" : "Manage wallet"}</button>
               <button className="rounded-lg px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200" onClick={disconnectWallet}>Disconnect</button>
               </>
             ) : (
-              <button className="rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-400" onClick={() => connectWallet(true)} disabled={connecting}>
+              <button className="rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-400" onClick={() => connectWallet()} disabled={connecting}>
                 {connecting ? "Connecting…" : "Connect wallet"}
               </button>
             )}

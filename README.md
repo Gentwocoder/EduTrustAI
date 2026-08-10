@@ -9,7 +9,8 @@ EduTrust AI is a standalone hackathon MVP. Institutions issue privacy-safe crede
 - Premium responsive public product site
 - Live public credential verification against selectable BOT Chain Mainnet and Testnet registries
 - Institution credential dashboard
-- Wallet-backed credential issuance
+- Wallet-backed credential issuance and revocation
+- Reown AppKit support for injected EIP-6963 wallets, WalletConnect QR/mobile wallets and Coinbase Wallet
 - Privacy-focused Solidity registry
 - Role-based institution issuer permissions
 - BOT Chain testnet and Mainnet configuration
@@ -34,7 +35,9 @@ npm install
 npm run dev
 ```
 
-The public verifier reads the deployed registry contract and returns only canonical on-chain status. Open `/dashboard` to connect an authorised issuer wallet and submit an issuance transaction.
+The Reown project ID is public application metadata. The deployed project has a built-in default, and it can be overridden with `NEXT_PUBLIC_REOWN_PROJECT_ID` as shown in `.env.example`.
+
+The public verifier reads the deployed registry contract and returns only canonical on-chain status. Open `/dashboard` to connect an authorised EVM wallet and submit issuance or revocation transactions.
 
 ## Smart contract
 
