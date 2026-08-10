@@ -6,11 +6,13 @@ import { AlertCircleIcon, CheckCircleIcon, ShieldCheckIcon } from "@/components/
 const TESSERACT_SCRIPT = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
 const TESSERACT_WORKER = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/worker.min.js";
 const TESSERACT_CORE = "https://cdn.jsdelivr.net/npm/tesseract.js-core@7.0.0";
-const TESSERACT_LANGUAGE = "https://tessdata.projectnaptha.com/4.0.0";
+const TESSERACT_LANGUAGE = "https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int";
 const PDF_SCRIPT = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/build/pdf.min.mjs";
 const PDF_WORKER = "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/build/pdf.worker.min.mjs";
 const PDF_EVENT = "edutrust:pdfjs-ready";
 const MAX_PDF_PAGES = 3;
+const OCR_START_TIMEOUT = 45_000;
+const OCR_RECOGNITION_TIMEOUT = 90_000;
 
 type Finding = {
   severity: "info" | "warning" | "critical";
@@ -84,6 +86,43 @@ declare global {
 
 let tesseractPromise: Promise<TesseractApi> | null = null;
 let pdfPromise: Promise<PdfJsApi> | null = null;
+
+function withTimeout<T>(promise: Promise<T>, milliseconds: number, message: string) {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), milliseconds);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function prepareImage(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const longestSide = Math.max(bitmap.width, bitmap.height);
+  const scale = Math.min(1, 2200 / longestSide);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d", { alpha: false });
+  if (!context) {
+    bitmap.close();
+    throw new Error("The certificate image could not be prepared.");
+  }
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.filter = "grayscale(1) contrast(1.15)";
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  context.filter = "none";
+  bitmap.close();
+  return canvas;
+}
 
 function loadTesseract() {
   if (window.Tesseract) return Promise.resolve(window.Tesseract);
@@ -286,26 +325,58 @@ function analyseText(
 async function createOcrWorker(
   setProgress: (progress: number, status: string) => void,
 ) {
-  const tesseract = await loadTesseract();
-  return tesseract.createWorker("eng", 1, {
-    workerPath: TESSERACT_WORKER,
-    corePath: TESSERACT_CORE,
-    langPath: TESSERACT_LANGUAGE,
-    logger: (message) => {
-      if (typeof message.progress === "number") {
-        setProgress(Math.round(message.progress * 100), message.status ?? "Reading document");
-      }
-    },
-  });
+  setProgress(3, "Downloading private OCR engine");
+  let tesseract: TesseractApi;
+  try {
+    tesseract = await withTimeout(
+      loadTesseract(),
+      15_000,
+      "The private OCR engine could not be downloaded. Check your connection and try again.",
+    );
+  } catch (error) {
+    tesseractPromise = null;
+    throw error;
+  }
+
+  setProgress(10, "Loading compact English recognition model");
+  try {
+    return await withTimeout(
+      tesseract.createWorker("eng", 1, {
+        workerPath: TESSERACT_WORKER,
+        corePath: TESSERACT_CORE,
+        langPath: TESSERACT_LANGUAGE,
+        logger: (message) => {
+          if (typeof message.progress !== "number") return;
+          const status = message.status ?? "Preparing OCR";
+          const mappedProgress = status === "recognizing text"
+            ? 25 + Math.round(message.progress * 70)
+            : 10 + Math.round(message.progress * 12);
+          setProgress(mappedProgress, status);
+        },
+      }),
+      OCR_START_TIMEOUT,
+      "Private OCR took too long to initialise. Check your connection and try again.",
+    );
+  } catch (error) {
+    tesseractPromise = null;
+    throw error;
+  }
 }
 
 async function readImage(
   file: File,
   setProgress: (progress: number, status: string) => void,
 ) {
+  const source = await prepareImage(file);
   const worker = await createOcrWorker(setProgress);
   try {
-    const result = await worker.recognize(file);
+    setProgress(25, "Reading certificate text locally");
+    const result = await withTimeout(
+      worker.recognize(source),
+      OCR_RECOGNITION_TIMEOUT,
+      "The scan is taking too long to read. Try a clearer or lower-resolution image.",
+    );
+    setProgress(98, "Analysing extracted fields");
     return {
       text: result.data.text,
       confidenceValues: [result.data.confidence],
@@ -313,8 +384,10 @@ async function readImage(
       totalPages: 1,
     };
   } finally {
+    source.width = 1;
+    source.height = 1;
     try {
-      await worker.terminate();
+      await withTimeout(worker.terminate(), 5_000, "OCR cleanup timed out.");
     } catch (error) {
       console.warn("Local OCR worker cleanup was skipped.", error);
     }
@@ -347,14 +420,19 @@ async function readPdf(
       }
 
       worker ??= await createOcrWorker(setProgress);
-      const viewport = page.getViewport({ scale: 1.6 });
+      const viewport = page.getViewport({ scale: 1.35 });
       const canvas = document.createElement("canvas");
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
       const context = canvas.getContext("2d", { alpha: false });
       if (!context) throw new Error("The document canvas could not be prepared.");
       await page.render({ canvasContext: context, viewport, canvas }).promise;
-      const result = await worker.recognize(canvas);
+      setProgress(25, `Reading scanned page ${pageNumber} locally`);
+      const result = await withTimeout(
+        worker.recognize(canvas),
+        OCR_RECOGNITION_TIMEOUT,
+        `Page ${pageNumber} is taking too long to read. Try a clearer or lower-resolution scan.`,
+      );
       text.push(result.data.text);
       confidenceValues.push(result.data.confidence);
       canvas.width = 1;
@@ -362,7 +440,7 @@ async function readPdf(
     }
   } finally {
     try {
-      await worker?.terminate();
+      if (worker) await withTimeout(worker.terminate(), 5_000, "OCR cleanup timed out.");
     } catch (error) {
       console.warn("Local OCR worker cleanup was skipped.", error);
     }
@@ -407,6 +485,7 @@ export function LocalDocumentReview({
     setReview(null);
     setMessage("");
     setProgress(0);
+    setProgress(1);
     setProgressStatus("Preparing private document reader");
 
     try {
@@ -471,7 +550,7 @@ export function LocalDocumentReview({
             {reviewing ? "Reviewing locally…" : "Run private document review"}
           </button>
           <p className="mt-2 text-[11px] leading-4 text-slate-500">
-            The OCR engine is downloaded when needed. Results are advisory and cannot prove authenticity; an authorised registrar makes the final decision.
+            The first scan downloads a compact OCR model and should start within 45 seconds. Results are advisory and cannot prove authenticity; an authorised registrar makes the final decision.
           </p>
         </div>
       </div>
