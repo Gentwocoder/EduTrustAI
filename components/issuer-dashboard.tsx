@@ -8,6 +8,7 @@ import {
   useAppKit,
   useAppKitAccount,
   useAppKitProvider,
+  useAppKitState,
   useDisconnect,
   type Provider,
 } from "@reown/appkit/react";
@@ -118,7 +119,8 @@ function mergeActivity(local: Activity[], chain: ChainActivity[]) {
 
 export function IssuerDashboard() {
   const { network, networkKey } = useBotNetwork();
-  const { open } = useAppKit();
+  const { open, close } = useAppKit();
+  const { open: walletModalOpen, loading: walletModalLoading } = useAppKitState();
   const { address, isConnected } = useAppKitAccount({ namespace: "eip155" });
   const { walletProvider } = useAppKitProvider<Provider>("eip155");
   const { disconnect } = useDisconnect();
@@ -177,43 +179,63 @@ export function IssuerDashboard() {
   }, [account, networkKey]);
 
   useEffect(() => {
+    if (isConnected && walletModalOpen) {
+      void close();
+    }
+  }, [close, isConnected, walletModalOpen]);
+
+  useEffect(() => {
     if (!walletProvider || !isConnected || !account) {
       preparedNetworkRef.current = "";
       return;
     }
+
+    // Never send add/switch requests while AppKit is still completing the
+    // account connection. OKX and Bitget reject overlapping wallet requests.
+    if (walletModalOpen || walletModalLoading) return;
 
     const preparationKey = `${account.toLowerCase()}:${network.key}`;
     if (preparedNetworkRef.current === preparationKey) return;
     preparedNetworkRef.current = preparationKey;
     let active = true;
 
-    void ensureBotChain(
-      walletProvider as WalletRequestProvider,
-      network,
-    )
-      .then(({ added, switched }) => {
-        if (active && (added || switched)) {
+    const preparationTimer = window.setTimeout(() => {
+      void ensureBotChain(
+        walletProvider as WalletRequestProvider,
+        network,
+      )
+        .then(({ added, switched }) => {
+          if (active && (added || switched)) {
+            setNotice({
+              tone: "success",
+              text: `${network.name} is ready in your wallet.`,
+            });
+          }
+        })
+        .catch((error) => {
+          if (!active) return;
+          if (preparedNetworkRef.current === preparationKey) {
+            preparedNetworkRef.current = "";
+          }
           setNotice({
-            tone: "success",
-            text: `${network.name} is ready in your wallet.`,
+            tone: "error",
+            text: walletNetworkErrorMessage(error, network),
           });
-        }
-      })
-      .catch((error) => {
-        if (!active) return;
-        if (preparedNetworkRef.current === preparationKey) {
-          preparedNetworkRef.current = "";
-        }
-        setNotice({
-          tone: "error",
-          text: walletNetworkErrorMessage(error, network),
         });
-      });
+    }, 500);
 
     return () => {
       active = false;
+      window.clearTimeout(preparationTimer);
     };
-  }, [account, isConnected, network, walletProvider]);
+  }, [
+    account,
+    isConnected,
+    network,
+    walletModalLoading,
+    walletModalOpen,
+    walletProvider,
+  ]);
 
   async function getSigner() {
     if (!walletProvider || !isConnected || !account) {
