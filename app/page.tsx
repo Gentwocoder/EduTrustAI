@@ -39,7 +39,7 @@ export default function Home() {
             <h1 className="text-4xl font-semibold tracking-[-0.035em] text-slate-950 sm:text-5xl lg:text-[3.4rem] lg:leading-[1.06]">Verify academic records without waiting on the registrar.</h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-slate-600">EduTrust gives schools a controlled issuance workspace and gives employers a direct way to confirm credentials against an auditable BOT Chain record.</p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <a className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="#verification">Verify a credential</a>
+              <a className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="#verification">Verify a credential</a>
               <Link className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="/dashboard">Open issuer workspace</Link>
             </div>
             <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 border-t border-slate-200 pt-5 text-xs text-slate-600">
@@ -111,13 +111,13 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="flex flex-col items-start justify-between gap-6 rounded-xl border border-slate-200 bg-slate-950 px-6 py-8 sm:px-8 lg:flex-row lg:items-center">
             <div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-300">Institution access</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Manage issuance from a focused registrar workspace.</h2><p className="mt-2 text-sm leading-6 text-slate-300">Review registry totals, issue new credentials, revoke compromised records and inspect the chain payload before signing.</p></div>
-            <Link className="inline-flex shrink-0 items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-950" href="/dashboard">Open institution portal <span className="ml-2" aria-hidden="true">→</span></Link>
+            <Link className="inline-flex shrink-0 items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-950" href="/dashboard">Open institution portal <span className="ml-2" aria-hidden="true">→</span></Link>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <footer className="border-t border-slate-800 bg-slate-950 [&_.text-slate-950]:!text-white">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-6 text-xs text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
           <Brand />
           <p>Independent credential verification · Built on BOT Chain</p>
           <p>© 2026 EduTrust AI</p>
