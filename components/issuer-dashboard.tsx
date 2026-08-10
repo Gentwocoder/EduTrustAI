@@ -13,6 +13,8 @@ import {
   type Provider,
 } from "@reown/appkit/react";
 import { Brand } from "@/components/brand";
+import { BulkIssuance } from "@/components/bulk-issuance";
+import { CredentialQr } from "@/components/credential-qr";
 import { useBotNetwork } from "@/components/network-provider";
 import { NetworkSwitcher } from "@/components/network-switcher";
 import {
@@ -76,12 +78,24 @@ type Notice = {
   text: string;
 };
 
+type InstitutionProfile = {
+  id: string;
+  name: string;
+  category: string;
+  wallet: string;
+  website?: string;
+  country?: string;
+  verified: true;
+  verificationMethod: string;
+};
+
 type IssuerRecord = {
   account: string;
   changedBy: string;
   transactionHash: string;
   blockNumber: number;
   active: boolean;
+  profile?: InstitutionProfile | null;
 };
 
 type RoleData = {
@@ -89,6 +103,7 @@ type RoleData = {
     address: string;
     isAdmin: boolean;
     isIssuer: boolean;
+    profile?: InstitutionProfile | null;
   };
   issuers: IssuerRecord[];
 };
@@ -173,7 +188,7 @@ export function IssuerDashboard() {
   const { walletProvider } = useAppKitProvider<Provider>("eip155");
   const { disconnect } = useDisconnect();
   const account = address ?? "";
-  const [view, setView] = useState<"overview" | "issue" | "issuers">("overview");
+  const [view, setView] = useState<"overview" | "issue" | "bulk" | "issuers">("overview");
   const [documentHash, setDocumentHash] = useState("");
   const [fileName, setFileName] = useState("");
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -186,6 +201,8 @@ export function IssuerDashboard() {
   const [revoking, setRevoking] = useState(false);
   const [roleAccess, setRoleAccess] = useState({ isAdmin: false, isIssuer: false });
   const [issuers, setIssuers] = useState<IssuerRecord[]>([]);
+  const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile | null>(null);
+  const [activityRefresh, setActivityRefresh] = useState(0);
   const [loadingRoles, setLoadingRoles] = useState(false);
   const [managingIssuer, setManagingIssuer] = useState(false);
   const [issuerToRemove, setIssuerToRemove] = useState<IssuerRecord | null>(null);
@@ -229,7 +246,7 @@ export function IssuerDashboard() {
     return () => {
       active = false;
     };
-  }, [account, networkKey]);
+  }, [account, activityRefresh, networkKey]);
 
   useEffect(() => {
     let active = true;
@@ -240,6 +257,7 @@ export function IssuerDashboard() {
 
       if (!account) {
         setRoleAccess({ isAdmin: false, isIssuer: false });
+        setInstitutionProfile(null);
         setIssuers([]);
         setLoadingRoles(false);
         setView((current) => current === "issuers" ? "overview" : current);
@@ -254,6 +272,7 @@ export function IssuerDashboard() {
           isAdmin: data.account.isAdmin,
           isIssuer: data.account.isIssuer,
         });
+        setInstitutionProfile(data.account.profile ?? null);
         setIssuers(data.issuers);
         if (!data.account.isAdmin) {
           setView((current) => current === "issuers" ? "overview" : current);
@@ -261,6 +280,7 @@ export function IssuerDashboard() {
       } catch {
         if (!active) return;
         setRoleAccess({ isAdmin: false, isIssuer: false });
+        setInstitutionProfile(null);
         setIssuers([]);
       } finally {
         if (active) setLoadingRoles(false);
@@ -382,6 +402,7 @@ export function IssuerDashboard() {
       isAdmin: data.account.isAdmin,
       isIssuer: data.account.isIssuer,
     });
+    setInstitutionProfile(data.account.profile ?? null);
     setIssuers(data.issuers);
   }
 
@@ -586,13 +607,15 @@ export function IssuerDashboard() {
         <div className="hidden h-[calc(100vh-4rem)] flex-col p-3 lg:flex">
           <div className="mb-4 rounded-lg border border-slate-200 p-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Wallet access</span>
-            <strong className="mt-2 block truncate font-mono text-xs text-slate-900">{account ? shortValue(account) : "Not connected"}</strong>
+            <strong className="mt-2 block truncate text-xs text-slate-900">{institutionProfile?.name ?? (account ? "Authorised issuer" : "Not connected")}</strong>
+            {account && <span className="mt-1 block truncate font-mono text-[11px] text-slate-500">{shortValue(account)}</span>}
             <span className={`mt-1 block text-xs ${account ? "text-emerald-700" : "text-slate-500"}`}>{account ? "Connected to issuer workspace" : "Connect an authorised wallet"}</span>
           </div>
 
           <nav className="space-y-1" aria-label="Institution portal">
             <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "overview" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("overview")}><HomeIcon className="size-5 shrink-0" />Overview</button>
             <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "issue" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("issue")}><PlusIcon className="size-5 shrink-0" />Issue credential</button>
+            <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "bulk" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("bulk")}><FileTextIcon className="size-5 shrink-0" />Bulk issuance</button>
             {roleAccess.isAdmin && <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "issuers" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("issuers")}><UsersIcon className="size-5 shrink-0" />Issuer management</button>}
             <a className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href={registryExplorerUrl(network)} target="_blank" rel="noreferrer"><ExternalLinkIcon className="size-5 shrink-0" />BOT explorer</a>
           </nav>
@@ -610,7 +633,7 @@ export function IssuerDashboard() {
 
       <section className="min-w-0">
         <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-8">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Institution portal</p><h1 className="mt-0.5 text-sm font-semibold text-slate-900">{view === "overview" ? "Credential registry" : view === "issue" ? "Issue a credential" : "Issuer management"}</h1></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Institution portal</p><h1 className="mt-0.5 text-sm font-semibold text-slate-900">{view === "overview" ? "Credential registry" : view === "issue" ? "Issue a credential" : view === "bulk" ? "Bulk issuance" : "Issuer management"}</h1></div>
           <div className="flex items-center gap-2">
             <NetworkSwitcher compact className="hidden sm:inline-flex" />
             {account ? (
@@ -647,13 +670,14 @@ export function IssuerDashboard() {
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
               <div><p className="text-xs font-semibold text-blue-700">BOT Chain registry</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Credential activity</h2><p className="mt-1 text-sm text-slate-600">Connect an authorised wallet to issue credentials and manage their current on-chain status.</p></div>
               <div className="flex flex-wrap gap-2">
+                <button className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200" onClick={() => setView("bulk")}><FileTextIcon className="mr-2 size-4" />Bulk issue</button>
                 {roleAccess.isAdmin && <button className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200" onClick={() => setView("issuers")}><UsersIcon className="mr-2 size-4" />Manage issuers</button>}
                 <button className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" onClick={() => setView("issue")}><PlusIcon className="mr-2 size-4" /> <span>Issue credential</span></button>
               </div>
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Issuer wallet</span><strong className="mt-2 block font-mono text-sm text-slate-950">{account ? shortValue(account) : "Not connected"}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{account ? "Wallet connection active" : "Required for signed transactions"}</span></article>
+              <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Institution profile</span><strong className="mt-2 block text-sm text-slate-950">{institutionProfile?.name ?? (account ? "Profile pending" : "Not connected")}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{institutionProfile?.verified ? `Verified · ${institutionProfile.category}` : account ? "Authorised wallet without a published profile" : "Connect a wallet to resolve its profile"}</span></article>
               <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Registry contract</span><a href={registryExplorerUrl(network)} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 font-mono text-sm font-semibold text-blue-700 hover:text-blue-800"><span>{shortValue(REGISTRY_ADDRESS)}</span><ExternalLinkIcon className="size-4" /></a><span className="mt-1 block text-xs leading-5 text-slate-500">{network.name}</span></article>
               <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Issued by wallet</span><strong className="mt-1 block text-2xl font-semibold tracking-tight text-slate-950">{account ? activity.length : "—"}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{loadingActivity ? "Loading confirmed activity…" : account ? "Restored when this wallet reconnects" : "Connect a wallet to load activity"}</span></article>
             </div>
@@ -665,7 +689,7 @@ export function IssuerDashboard() {
               ) : activity.length === 0 ? (
                 <div className="px-5 py-14 text-center"><span className="mx-auto grid size-11 place-items-center rounded-lg bg-slate-100 text-slate-500"><FileTextIcon className="size-5" /></span><h4 className="mt-3 text-base font-semibold text-slate-900">{account ? "No issuance activity yet" : "Connect a wallet to view activity"}</h4><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">{account ? "Records will appear here after this wallet confirms an issuance transaction." : "EduTrust restores the issuance history associated with each connected wallet."}</p>{account && <button onClick={() => setView("issue")} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">Issue the first credential</button>}</div>
               ) : (
-                <div className="overflow-x-auto"><table className="w-full min-w-[1000px] border-collapse text-left"><thead><tr className="bg-slate-50 text-sm font-semibold uppercase tracking-wider text-slate-600"><th className="px-5 py-3">Credential</th><th className="px-5 py-3">Document fingerprint</th><th className="px-5 py-3">Confirmed</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{activity.map((item) => <tr className="text-sm text-slate-700" key={item.transactionHash}><td className="px-5 py-4 font-mono font-semibold text-slate-900" title={item.credentialId ?? item.credentialIdHash}>{item.credentialId ?? shortValue(item.credentialIdHash)}</td><td className="px-5 py-4 font-mono">{shortValue(item.documentHash)}</td><td className="px-5 py-4 text-slate-500">{item.confirmedAt}</td><td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm font-semibold capitalize ring-1 ring-inset ${item.status === "valid" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : item.status === "revoked" ? "bg-red-50 text-red-700 ring-red-200" : "bg-slate-100 text-slate-600 ring-slate-200"}`}>{item.status === "valid" ? <CheckCircleIcon className="size-4" /> : item.status === "revoked" ? <BanIcon className="size-4" /> : <CircleHelpIcon className="size-4" />}{item.status}</span>{item.status === "revoked" && item.revokedAt > 0 && <span className="mt-1 block text-xs text-slate-400">{new Date(item.revokedAt * 1000).toLocaleString()}</span>}</td><td className="px-5 py-4 text-right"><div className="flex items-center justify-end gap-3"><a className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200" href={`${network.explorerUrl}/tx/${item.transactionHash}`} target="_blank" rel="noreferrer">View <ExternalLinkIcon className="size-4" /></a>{item.status === "valid" && <button className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200" onClick={() => { setRevokeTarget(item); setRevocationReason(""); setNotice(null); }}><BanIcon className="size-4" />Revoke</button>}</div></td></tr>)}</tbody></table></div>
+                <div className="overflow-x-auto"><table className="w-full min-w-[1000px] border-collapse text-left"><thead><tr className="bg-slate-50 text-sm font-semibold uppercase tracking-wider text-slate-600"><th className="px-5 py-3">Credential</th><th className="px-5 py-3">Document fingerprint</th><th className="px-5 py-3">Confirmed</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{activity.map((item) => <tr className="text-sm text-slate-700" key={item.transactionHash}><td className="px-5 py-4 font-mono font-semibold text-slate-900" title={item.credentialId ?? item.credentialIdHash}>{item.credentialId ?? shortValue(item.credentialIdHash)}</td><td className="px-5 py-4 font-mono">{shortValue(item.documentHash)}</td><td className="px-5 py-4 text-slate-500">{item.confirmedAt}</td><td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm font-semibold capitalize ring-1 ring-inset ${item.status === "valid" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : item.status === "revoked" ? "bg-red-50 text-red-700 ring-red-200" : "bg-slate-100 text-slate-600 ring-slate-200"}`}>{item.status === "valid" ? <CheckCircleIcon className="size-4" /> : item.status === "revoked" ? <BanIcon className="size-4" /> : <CircleHelpIcon className="size-4" />}{item.status}</span>{item.status === "revoked" && item.revokedAt > 0 && <span className="mt-1 block text-xs text-slate-400">{new Date(item.revokedAt * 1000).toLocaleString()}</span>}</td><td className="px-5 py-4 text-right"><div className="flex items-center justify-end gap-3"><CredentialQr credentialIdHash={item.credentialIdHash} networkKey={networkKey} /><a className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200" href={`${network.explorerUrl}/tx/${item.transactionHash}`} target="_blank" rel="noreferrer">View <ExternalLinkIcon className="size-4" /></a>{item.status === "valid" && <button className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200" onClick={() => { setRevokeTarget(item); setRevocationReason(""); setNotice(null); }}><BanIcon className="size-4" />Revoke</button>}</div></td></tr>)}</tbody></table></div>
               )}
             </section>
           </div>
@@ -697,6 +721,11 @@ export function IssuerDashboard() {
                 <div className="mt-4 rounded-lg bg-slate-50 p-3"><strong className="text-xs font-semibold text-slate-800">Never written on-chain</strong><p className="mt-1 text-xs leading-5 text-slate-500">Student name · Grade · Certificate file · Contact details</p></div>
               </aside>
             </div>
+          </div>
+        ) : view === "bulk" ? (
+          <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
+            <button className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-950" onClick={() => setView("overview")}><ArrowLeftIcon className="size-4" /> Back to registry</button>
+            <BulkIssuance onComplete={() => setActivityRefresh((current) => current + 1)} />
           </div>
         ) : (
           <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
