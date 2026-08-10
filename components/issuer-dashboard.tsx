@@ -5,7 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { BrowserProvider, Contract, id as hashText, sha256 } from "ethers";
 import { Brand } from "@/components/brand";
-import { BOT_MAINNET, REGISTRY_ABI, REGISTRY_ADDRESS, registryExplorerUrl } from "@/lib/registry";
+import { useBotNetwork } from "@/components/network-provider";
+import { NetworkSwitcher } from "@/components/network-switcher";
+import { REGISTRY_ABI, REGISTRY_ADDRESS, registryExplorerUrl, type BotNetworkKey } from "@/lib/registry";
 
 type EthereumProvider = {
   request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown>;
@@ -38,7 +40,7 @@ type ChainActivity = {
 
 const inputClass = "mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
 const labelClass = "text-xs font-semibold text-slate-700";
-const activityStoragePrefix = "edutrust:issuance:v2:677:";
+const activityStoragePrefix = "edutrust:issuance:v2:";
 
 function shortValue(value: string, start = 8, end = 6) {
   return `${value.slice(0, start)}…${value.slice(-end)}`;
@@ -48,22 +50,22 @@ function NavIcon({ children }: { children: string }) {
   return <span className="grid size-5 place-items-center text-sm" aria-hidden="true">{children}</span>;
 }
 
-function activityStorageKey(address: string) {
-  return `${activityStoragePrefix}${address.toLowerCase()}`;
+function activityStorageKey(address: string, networkKey: BotNetworkKey) {
+  return `${activityStoragePrefix}${networkKey}:${address.toLowerCase()}`;
 }
 
-function readStoredActivity(address: string): Activity[] {
+function readStoredActivity(address: string, networkKey: BotNetworkKey): Activity[] {
   try {
-    const value = window.localStorage.getItem(activityStorageKey(address));
+    const value = window.localStorage.getItem(activityStorageKey(address, networkKey));
     return value ? JSON.parse(value) as Activity[] : [];
   } catch {
     return [];
   }
 }
 
-function storeActivity(address: string, activity: Activity[]) {
+function storeActivity(address: string, networkKey: BotNetworkKey, activity: Activity[]) {
   try {
-    window.localStorage.setItem(activityStorageKey(address), JSON.stringify(activity));
+    window.localStorage.setItem(activityStorageKey(address, networkKey), JSON.stringify(activity));
   } catch {
     // The on-chain event remains the canonical fallback when storage is unavailable.
   }
@@ -88,6 +90,7 @@ function mergeActivity(local: Activity[], chain: ChainActivity[]) {
 }
 
 export function IssuerDashboard() {
+  const { network, networkKey } = useBotNetwork();
   const [view, setView] = useState<"overview" | "issue">("overview");
   const [account, setAccount] = useState("");
   const [documentHash, setDocumentHash] = useState("");
@@ -130,18 +133,18 @@ export function IssuerDashboard() {
         return;
       }
 
-      const stored = readStoredActivity(account);
+      const stored = readStoredActivity(account, networkKey);
       setActivity(stored);
       setLoadingActivity(true);
 
       try {
-        const response = await fetch(`/api/registry?issuer=${encodeURIComponent(account)}`);
+        const response = await fetch(`/api/registry?network=${networkKey}&issuer=${encodeURIComponent(account)}`);
         if (!response.ok) throw new Error("Activity could not be loaded");
         const data = await response.json() as { activity: ChainActivity[] };
         if (!active) return;
         const next = mergeActivity(stored, data.activity);
         setActivity(next);
-        storeActivity(account, next);
+        storeActivity(account, networkKey, next);
       } catch {
         // Keep wallet-scoped local history visible if the RPC cannot serve logs.
       } finally {
@@ -154,7 +157,7 @@ export function IssuerDashboard() {
     return () => {
       active = false;
     };
-  }, [account]);
+  }, [account, networkKey]);
 
   async function getSigner(requestSelection = false) {
     if (!window.ethereum) {
@@ -177,7 +180,7 @@ export function IssuerDashboard() {
     try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: BOT_MAINNET.chainIdHex }],
+        params: [{ chainId: network.chainIdHex }],
       });
     } catch (error) {
       const code = (error as { code?: number }).code;
@@ -185,11 +188,11 @@ export function IssuerDashboard() {
       await window.ethereum.request({
         method: "wallet_addEthereumChain",
         params: [{
-          chainId: BOT_MAINNET.chainIdHex,
-          chainName: BOT_MAINNET.name,
+          chainId: network.chainIdHex,
+          chainName: network.name,
           nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
-          rpcUrls: [BOT_MAINNET.rpcUrl],
-          blockExplorerUrls: [BOT_MAINNET.explorerUrl],
+          rpcUrls: [network.rpcUrl],
+          blockExplorerUrls: [network.explorerUrl],
         }],
       });
     }
@@ -273,14 +276,14 @@ export function IssuerDashboard() {
       };
       setActivity((current) => {
         const next = [issuedActivity, ...current.filter((item) => item.transactionHash.toLowerCase() !== transactionHash.toLowerCase())];
-        storeActivity(issuerAddress, next);
+        storeActivity(issuerAddress, networkKey, next);
         return next;
       });
       form.reset();
       setDocumentHash("");
       setFileName("");
       setView("overview");
-      setNotice({ tone: "success", text: `${credentialId} was confirmed on BOT Chain Mainnet.` });
+      setNotice({ tone: "success", text: `${credentialId} was confirmed on ${network.name}.` });
     } catch (error) {
       const reason = error instanceof Error && error.message.includes("AccessControlUnauthorizedAccount")
         ? "This wallet is not authorised as an issuer on the registry contract."
@@ -309,14 +312,14 @@ export function IssuerDashboard() {
           <nav className="space-y-1" aria-label="Institution portal">
             <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "overview" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("overview")}><NavIcon>⌂</NavIcon>Overview</button>
             <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "issue" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("issue")}><NavIcon>＋</NavIcon>Issue credential</button>
-            <a className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href={registryExplorerUrl()} target="_blank" rel="noreferrer"><NavIcon>↗</NavIcon>BOT explorer</a>
+            <a className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href={registryExplorerUrl(network)} target="_blank" rel="noreferrer"><NavIcon>↗</NavIcon>BOT explorer</a>
           </nav>
 
           <div className="mt-auto space-y-3">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Deployment network</span><span className="size-2 rounded-full bg-emerald-500" /></div>
-              <strong className="mt-2 block text-xs font-semibold text-slate-800">{BOT_MAINNET.name}</strong>
-              <span className="mt-1 block font-mono text-[11px] text-slate-500">Chain ID {BOT_MAINNET.chainId}</span>
+              <strong className="mt-2 block text-xs font-semibold text-slate-800">{network.name}</strong>
+              <span className="mt-1 block font-mono text-[11px] text-slate-500">Chain ID {network.chainId}</span>
             </div>
             <Link className="block px-2 text-xs font-medium text-slate-500 hover:text-slate-900" href="/">← Back to public site</Link>
           </div>
@@ -326,18 +329,25 @@ export function IssuerDashboard() {
       <section className="min-w-0">
         <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-8">
           <div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Institution portal</p><h1 className="mt-0.5 text-sm font-semibold text-slate-900">{view === "overview" ? "Credential registry" : "Issue a credential"}</h1></div>
-          {account ? (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <NetworkSwitcher compact className="hidden sm:inline-flex" />
+            {account ? (
+              <>
               <span className="hidden rounded-md bg-slate-100 px-2.5 py-2 font-mono text-[11px] font-semibold text-slate-700 sm:inline-flex">{shortValue(account, 6, 4)}</span>
               <button className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:cursor-wait disabled:text-slate-400" onClick={() => connectWallet(true)} disabled={connecting}>{connecting ? "Opening wallet…" : "Switch wallet"}</button>
               <button className="rounded-lg px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200" onClick={disconnectWallet}>Disconnect</button>
-            </div>
-          ) : (
-            <button className="rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-400" onClick={() => connectWallet(true)} disabled={connecting}>
-              {connecting ? "Connecting…" : "Connect wallet"}
-            </button>
-          )}
+              </>
+            ) : (
+              <button className="rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-400" onClick={() => connectWallet(true)} disabled={connecting}>
+                {connecting ? "Connecting…" : "Connect wallet"}
+              </button>
+            )}
+          </div>
         </header>
+
+        <div className="border-b border-slate-200 bg-white px-4 py-2 sm:hidden">
+          <NetworkSwitcher className="w-full justify-center" />
+        </div>
 
         {notice && <div className={`mx-4 mt-4 flex items-center gap-3 rounded-lg border px-4 py-3 text-xs font-medium sm:mx-6 lg:mx-8 ${notice.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`} role={notice.tone === "error" ? "alert" : "status"}><span className={`grid size-5 place-items-center rounded-full text-[10px] text-white ${notice.tone === "success" ? "bg-emerald-600" : "bg-red-600"}`}>{notice.tone === "success" ? "✓" : "!"}</span><span className="min-w-0 flex-1 break-words">{notice.text}</span><button className="rounded p-1 hover:bg-black/5" onClick={() => setNotice(null)} aria-label="Dismiss notification">×</button></div>}
 
@@ -350,18 +360,18 @@ export function IssuerDashboard() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Issuer wallet</span><strong className="mt-2 block font-mono text-sm text-slate-950">{account ? shortValue(account) : "Not connected"}</strong><span className="mt-1 block text-[11px] text-slate-500">{account ? "Wallet connection active" : "Required for signed transactions"}</span></article>
-              <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Registry contract</span><a href={registryExplorerUrl()} target="_blank" rel="noreferrer" className="mt-2 block font-mono text-sm font-semibold text-blue-700 hover:underline">{shortValue(REGISTRY_ADDRESS)} ↗</a><span className="mt-1 block text-[11px] text-slate-500">{BOT_MAINNET.name}</span></article>
+              <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Registry contract</span><a href={registryExplorerUrl(network)} target="_blank" rel="noreferrer" className="mt-2 block font-mono text-sm font-semibold text-blue-700 hover:underline">{shortValue(REGISTRY_ADDRESS)} ↗</a><span className="mt-1 block text-[11px] text-slate-500">{network.name}</span></article>
               <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Issued by wallet</span><strong className="mt-1 block text-2xl font-semibold tracking-tight text-slate-950">{account ? activity.length : "—"}</strong><span className="mt-1 block text-[11px] text-slate-500">{loadingActivity ? "Loading confirmed activity…" : account ? "Restored when this wallet reconnects" : "Connect a wallet to load activity"}</span></article>
             </div>
 
             <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-200 px-5 py-4"><h3 className="text-sm font-semibold text-slate-900">Wallet activity</h3><p className="mt-1 text-xs text-slate-500">Confirmed issuance transactions associated with the connected wallet</p></div>
               {loadingActivity && activity.length === 0 ? (
-                <div className="px-5 py-14 text-center"><span className="text-sm font-semibold text-slate-700">Loading wallet activity…</span><p className="mt-1 text-xs text-slate-500">Reading confirmed issuance events from BOT Chain Mainnet.</p></div>
+                <div className="px-5 py-14 text-center"><span className="text-sm font-semibold text-slate-700">Loading wallet activity…</span><p className="mt-1 text-xs text-slate-500">Reading confirmed issuance events from {network.name}.</p></div>
               ) : activity.length === 0 ? (
                 <div className="px-5 py-14 text-center"><span className="mx-auto grid size-10 place-items-center rounded-lg bg-slate-100 text-slate-500">#</span><h4 className="mt-3 text-sm font-semibold text-slate-900">{account ? "No issuance activity yet" : "Connect a wallet to view activity"}</h4><p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-500">{account ? "Records will appear here after this wallet confirms an issuance transaction." : "EduTrust restores the issuance history associated with each connected wallet."}</p>{account && <button onClick={() => setView("issue")} className="mt-4 text-xs font-semibold text-blue-700 hover:underline">Issue the first credential</button>}</div>
               ) : (
-                <div className="overflow-x-auto"><table className="w-full min-w-[720px] border-collapse text-left"><thead><tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500"><th className="px-5 py-3">Credential</th><th className="px-5 py-3">Document fingerprint</th><th className="px-5 py-3">Confirmed</th><th className="px-5 py-3 text-right">Transaction</th></tr></thead><tbody className="divide-y divide-slate-100">{activity.map((item) => <tr className="text-xs text-slate-700" key={item.transactionHash}><td className="px-5 py-4 font-mono font-semibold text-slate-900" title={item.credentialId ?? item.credentialIdHash}>{item.credentialId ?? shortValue(item.credentialIdHash)}</td><td className="px-5 py-4 font-mono">{shortValue(item.documentHash)}</td><td className="px-5 py-4 text-slate-500">{item.confirmedAt}</td><td className="px-5 py-4 text-right"><a className="font-semibold text-blue-700 hover:underline" href={`${BOT_MAINNET.explorerUrl}/tx/${item.transactionHash}`} target="_blank" rel="noreferrer">View ↗</a></td></tr>)}</tbody></table></div>
+                <div className="overflow-x-auto"><table className="w-full min-w-[720px] border-collapse text-left"><thead><tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500"><th className="px-5 py-3">Credential</th><th className="px-5 py-3">Document fingerprint</th><th className="px-5 py-3">Confirmed</th><th className="px-5 py-3 text-right">Transaction</th></tr></thead><tbody className="divide-y divide-slate-100">{activity.map((item) => <tr className="text-xs text-slate-700" key={item.transactionHash}><td className="px-5 py-4 font-mono font-semibold text-slate-900" title={item.credentialId ?? item.credentialIdHash}>{item.credentialId ?? shortValue(item.credentialIdHash)}</td><td className="px-5 py-4 font-mono">{shortValue(item.documentHash)}</td><td className="px-5 py-4 text-slate-500">{item.confirmedAt}</td><td className="px-5 py-4 text-right"><a className="font-semibold text-blue-700 hover:underline" href={`${network.explorerUrl}/tx/${item.transactionHash}`} target="_blank" rel="noreferrer">View ↗</a></td></tr>)}</tbody></table></div>
               )}
             </section>
           </div>
@@ -381,11 +391,11 @@ export function IssuerDashboard() {
               </form>
 
               <aside className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between"><span className="grid size-10 place-items-center rounded-lg border border-slate-200 bg-white"><Image src="/favicon.svg" alt="" width={24} height={24} /></span><span className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-200">Mainnet</span></div>
+                <div className="flex items-center justify-between"><span className="grid size-10 place-items-center rounded-lg border border-slate-200 bg-white"><Image src="/favicon.svg" alt="" width={24} height={24} /></span><span className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset ${network.key === "mainnet" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-amber-50 text-amber-700 ring-amber-200"}`}>{network.shortName}</span></div>
                 <h3 className="mt-5 text-sm font-semibold text-slate-900">Transaction preview</h3><p className="mt-1 text-xs leading-5 text-slate-500">Review the public destination before approving the wallet request.</p>
                 <dl className="mt-4 divide-y divide-slate-100 border-y border-slate-100">
-                  <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Network</dt><dd className="text-right text-[11px] font-semibold text-slate-800">{BOT_MAINNET.name}</dd></div>
-                  <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Chain ID</dt><dd className="font-mono text-[11px] font-semibold text-slate-800">{BOT_MAINNET.chainId}</dd></div>
+                  <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Network</dt><dd className="text-right text-[11px] font-semibold text-slate-800">{network.name}</dd></div>
+                  <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Chain ID</dt><dd className="font-mono text-[11px] font-semibold text-slate-800">{network.chainId}</dd></div>
                   <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Issuer</dt><dd className="max-w-[160px] text-right font-mono text-[11px] font-semibold text-slate-800">{account ? shortValue(account) : "Not connected"}</dd></div>
                   <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Contract</dt><dd className="max-w-[160px] text-right font-mono text-[11px] font-semibold text-slate-800">{shortValue(REGISTRY_ADDRESS)}</dd></div>
                   <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Document</dt><dd className="max-w-[160px] truncate text-right font-mono text-[11px] font-semibold text-slate-800" title={documentHash}>{documentHash ? shortValue(documentHash) : fileName || "Not selected"}</dd></div>

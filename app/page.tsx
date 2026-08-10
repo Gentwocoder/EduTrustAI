@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Brand } from "@/components/brand";
+import { NetworkSwitcher } from "@/components/network-switcher";
 import { RegistryOverview } from "@/components/registry-overview";
 import { VerificationDemo } from "@/components/verification-demo";
 
@@ -20,9 +21,12 @@ export default function Home() {
             <a className="transition hover:text-slate-950" href="#how-it-works">How it works</a>
             <a className="transition hover:text-slate-950" href="#institutions">Institutions</a>
           </div>
-          <Link className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="/dashboard">
-            Institution portal
-          </Link>
+          <div className="flex items-center gap-2">
+            <NetworkSwitcher compact className="hidden lg:inline-flex" />
+            <Link className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="/dashboard">
+              Institution portal
+            </Link>
+          </div>
         </nav>
       </header>
 
@@ -48,7 +52,7 @@ export default function Home() {
           <div id="verification" className="scroll-mt-24">
             <div className="mb-3 flex items-center justify-between px-1 text-xs text-slate-500">
               <span className="font-medium">Public verification service</span>
-              <span className="font-mono">BOT Mainnet · 677</span>
+              <NetworkSwitcher compact />
             </div>
             <VerificationDemo />
           </div>

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { isHexString } from "ethers";
+import { useBotNetwork } from "@/components/network-provider";
 import { registryExplorerUrl } from "@/lib/registry";
 
 type RegistryRecord = {
@@ -35,6 +36,7 @@ function shortHash(value: string) {
 }
 
 export function VerificationDemo() {
+  const { network, networkKey } = useBotNetwork();
   const [credentialId, setCredentialId] = useState("");
   const [documentHash, setDocumentHash] = useState("");
   const [state, setState] = useState<ResultState>("idle");
@@ -44,14 +46,23 @@ export function VerificationDemo() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/registry")
-      .then((response) => response.json())
-      .then((data) => active && setRegistryOnline(Boolean(data.available)))
-      .catch(() => active && setRegistryOnline(false));
+    async function checkRegistry() {
+      await Promise.resolve();
+      if (!active) return;
+      setRegistryOnline(null);
+      setState("idle");
+      setRecord(null);
+      setMessage("");
+      fetch(`/api/registry?network=${networkKey}`)
+        .then((response) => response.json())
+        .then((data) => active && setRegistryOnline(Boolean(data.available)))
+        .catch(() => active && setRegistryOnline(false));
+    }
+    void checkRegistry();
     return () => {
       active = false;
     };
-  }, []);
+  }, [networkKey]);
 
   async function verify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,7 +77,7 @@ export function VerificationDemo() {
     }
 
     try {
-      const response = await fetch(`/api/registry?credentialId=${encodeURIComponent(credentialId)}`);
+      const response = await fetch(`/api/registry?network=${networkKey}&credentialId=${encodeURIComponent(credentialId)}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
       setRecord(data);
@@ -88,7 +99,7 @@ export function VerificationDemo() {
           <StatusIcon />
           <div>
             <h2 id="verification-title" className="text-sm font-semibold text-slate-950">Verify a credential</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Read directly from the BOT Chain Mainnet registry</p>
+            <p className="mt-0.5 text-xs text-slate-500">Read directly from the {network.name} registry</p>
           </div>
         </div>
         <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold ${registryOnline === true ? "border-emerald-200 bg-emerald-50 text-emerald-700" : registryOnline === false ? "border-red-200 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
@@ -168,7 +179,7 @@ export function VerificationDemo() {
               <div className="bg-white px-3 py-2.5"><dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Issuer wallet</dt><dd className="mt-1 font-mono text-xs font-semibold text-slate-800" title={record.issuer}>{shortHash(record.issuer)}</dd></div>
               <div className="bg-white px-3 py-2.5"><dt className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Document check</dt><dd className="mt-1 text-xs font-semibold text-slate-800">{fingerprintMatches === null ? "Not supplied" : fingerprintMatches ? "Fingerprint matched" : "Fingerprint mismatch"}</dd></div>
             </dl>
-            <a className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline" href={registryExplorerUrl()} target="_blank" rel="noreferrer">View contract on BOTScan <span aria-hidden="true">↗</span></a>
+            <a className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline" href={registryExplorerUrl(network)} target="_blank" rel="noreferrer">View contract on BOTScan <span aria-hidden="true">↗</span></a>
           </div>
         )}
 

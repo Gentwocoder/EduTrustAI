@@ -1,16 +1,48 @@
-export const BOT_MAINNET = {
-  chainId: 677,
-  chainIdHex: "0x2a5",
-  name: "BOT Chain Mainnet",
-  rpcUrl: "https://rpc.botchain.ai",
-  explorerUrl: "https://scan.botchain.ai",
-} as const;
+export type BotNetworkKey = "mainnet" | "testnet";
+
+export type BotNetwork = {
+  key: BotNetworkKey;
+  shortName: "Mainnet" | "Testnet";
+  chainId: number;
+  chainIdHex: string;
+  name: string;
+  rpcUrl: string;
+  explorerUrl: string;
+  deploymentBlock: number;
+};
+
+export const BOT_NETWORKS = {
+  mainnet: {
+    key: "mainnet",
+    shortName: "Mainnet",
+    chainId: 677,
+    chainIdHex: "0x2a5",
+    name: "BOT Chain Mainnet",
+    rpcUrl: "https://rpc.botchain.ai",
+    explorerUrl: "https://scan.botchain.ai",
+    deploymentBlock: 19177944,
+  },
+  testnet: {
+    key: "testnet",
+    shortName: "Testnet",
+    chainId: 968,
+    chainIdHex: "0x3c8",
+    name: "BOT Chain Testnet",
+    rpcUrl: "https://rpc.bohr.life",
+    explorerUrl: "https://scan.bohr.life",
+    deploymentBlock: 0,
+  },
+} as const satisfies Record<BotNetworkKey, BotNetwork>;
+
+export const DEFAULT_NETWORK_KEY: BotNetworkKey = "mainnet";
+
+export function isBotNetworkKey(value: string | null): value is BotNetworkKey {
+  return value === "mainnet" || value === "testnet";
+}
 
 export const REGISTRY_ADDRESS =
   process.env.NEXT_PUBLIC_EDUTRUST_REGISTRY_ADDRESS ??
   "0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f";
-
-export const REGISTRY_DEPLOYMENT_BLOCK = 19177944;
 
 export const REGISTRY_ABI = [
   "event CredentialIssued(bytes32 indexed credentialIdHash, bytes32 indexed documentHash, address indexed issuer, uint64 issuedAt)",
@@ -19,6 +51,6 @@ export const REGISTRY_ABI = [
   "function getCredential(bytes32 credentialIdHash) view returns (bytes32 documentHash, address issuer, uint64 issuedAt, uint64 revokedAt, uint8 status)",
 ] as const;
 
-export function registryExplorerUrl() {
-  return `${BOT_MAINNET.explorerUrl}/address/${REGISTRY_ADDRESS}`;
+export function registryExplorerUrl(network: BotNetwork) {
+  return `${network.explorerUrl}/address/${REGISTRY_ADDRESS}`;
 }

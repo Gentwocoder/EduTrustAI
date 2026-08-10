@@ -1,17 +1,24 @@
 import { Contract, EventLog, JsonRpcProvider, id as hashText, isAddress, isHexString } from "ethers";
-import { BOT_MAINNET, REGISTRY_ABI, REGISTRY_ADDRESS, REGISTRY_DEPLOYMENT_BLOCK } from "@/lib/registry";
+import { BOT_NETWORKS, DEFAULT_NETWORK_KEY, isBotNetworkKey, REGISTRY_ABI, REGISTRY_ADDRESS } from "@/lib/registry";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    const url = new URL(request.url);
+    const requestedNetwork = url.searchParams.get("network");
+    if (requestedNetwork && !isBotNetworkKey(requestedNetwork)) {
+      return Response.json({ message: "Choose either BOT Chain Mainnet or Testnet." }, { status: 400 });
+    }
+
+    const networkKey = isBotNetworkKey(requestedNetwork) ? requestedNetwork : DEFAULT_NETWORK_KEY;
+    const selectedNetwork = BOT_NETWORKS[networkKey];
     // Cloudflare requires network clients and their internal timers to be
     // created within the request lifecycle rather than at module scope.
-    const provider = new JsonRpcProvider(BOT_MAINNET.rpcUrl, BOT_MAINNET.chainId, {
+    const provider = new JsonRpcProvider(selectedNetwork.rpcUrl, selectedNetwork.chainId, {
       staticNetwork: true,
     });
     const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, provider);
-    const url = new URL(request.url);
     const credentialId = url.searchParams.get("credentialId")?.trim();
     const issuer = url.searchParams.get("issuer")?.trim();
 
@@ -21,7 +28,7 @@ export async function GET(request: Request) {
       }
 
       const filter = registry.filters.CredentialIssued(null, null, issuer);
-      const logs = await registry.queryFilter(filter, REGISTRY_DEPLOYMENT_BLOCK, "latest");
+      const logs = await registry.queryFilter(filter, selectedNetwork.deploymentBlock, "latest");
       const activity = logs
         .filter((log): log is EventLog => log instanceof EventLog)
         .map((log) => ({
@@ -46,7 +53,8 @@ export async function GET(request: Request) {
       return Response.json({
         available: code !== "0x",
         chainId: Number(network.chainId),
-        network: BOT_MAINNET.name,
+        network: selectedNetwork.name,
+        networkKey: selectedNetwork.key,
         contractAddress: REGISTRY_ADDRESS,
       });
     }
@@ -68,7 +76,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("BOT registry request failed", error);
     return Response.json(
-      { message: "The BOT Chain Mainnet registry could not be reached. Please try again." },
+      { message: "The selected BOT Chain registry could not be reached. Please try again." },
       { status: 502 },
     );
   }

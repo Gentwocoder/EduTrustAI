@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BOT_MAINNET, REGISTRY_ADDRESS, registryExplorerUrl } from "@/lib/registry";
+import { useBotNetwork } from "@/components/network-provider";
+import { REGISTRY_ADDRESS, registryExplorerUrl } from "@/lib/registry";
 
 type RegistryHealth = {
   available: boolean;
@@ -13,22 +14,30 @@ function shortAddress(value: string) {
 }
 
 export function RegistryOverview() {
+  const { network, networkKey } = useBotNetwork();
   const [health, setHealth] = useState<RegistryHealth | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
-    fetch("/api/registry")
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Registry unavailable");
-        return response.json();
-      })
-      .then((data) => active && setHealth(data))
-      .catch(() => active && setFailed(true));
+    async function checkRegistry() {
+      await Promise.resolve();
+      if (!active) return;
+      setHealth(null);
+      setFailed(false);
+      fetch(`/api/registry?network=${networkKey}`)
+        .then(async (response) => {
+          if (!response.ok) throw new Error("Registry unavailable");
+          return response.json();
+        })
+        .then((data) => active && setHealth(data))
+        .catch(() => active && setFailed(true));
+    }
+    void checkRegistry();
     return () => {
       active = false;
     };
-  }, []);
+  }, [networkKey]);
 
   const items = [
     {
@@ -39,8 +48,8 @@ export function RegistryOverview() {
     },
     {
       label: "Network",
-      value: BOT_MAINNET.name,
-      detail: `Chain ID ${health?.chainId ?? BOT_MAINNET.chainId}`,
+      value: network.name,
+      detail: `Chain ID ${health?.chainId ?? network.chainId}`,
       tone: "text-slate-950",
     },
     {
@@ -48,7 +57,7 @@ export function RegistryOverview() {
       value: shortAddress(REGISTRY_ADDRESS),
       detail: "Deployed credential registry",
       tone: "font-mono text-slate-950",
-      href: registryExplorerUrl(),
+      href: registryExplorerUrl(network),
     },
     {
       label: "Public access",
