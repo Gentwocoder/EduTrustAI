@@ -63,5 +63,15 @@ export default defineConfig({
         },
       },
     },
+    677: {
+      name: "BOT Chain Mainnet",
+      blockExplorers: {
+        etherscan: {
+          name: "BOTScan Mainnet",
+          url: "https://scan.botchain.ai",
+          apiUrl: "https://scan.botchain.ai/api",
+        },
+      },
+    },
   },
 });
