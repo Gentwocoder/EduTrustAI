@@ -15,6 +15,7 @@ import {
 import { Brand } from "@/components/brand";
 import { BulkIssuance } from "@/components/bulk-issuance";
 import { CredentialQr } from "@/components/credential-qr";
+import { LocalDocumentReview } from "@/components/local-document-review";
 import { useBotNetwork } from "@/components/network-provider";
 import { NetworkSwitcher } from "@/components/network-switcher";
 import {
@@ -189,8 +190,10 @@ export function IssuerDashboard() {
   const { disconnect } = useDisconnect();
   const account = address ?? "";
   const [view, setView] = useState<"overview" | "issue" | "bulk" | "issuers">("overview");
+  const [credentialId, setCredentialId] = useState("");
   const [documentHash, setDocumentHash] = useState("");
   const [fileName, setFileName] = useState("");
+  const [selectedDocument, setSelectedDocument] = useState<File | null>(null);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -491,6 +494,7 @@ export function IssuerDashboard() {
   async function selectDocument(file?: File) {
     setDocumentHash("");
     setFileName("");
+    setSelectedDocument(file ?? null);
     if (!file) return;
     const digest = sha256(new Uint8Array(await file.arrayBuffer()));
     setDocumentHash(digest);
@@ -533,8 +537,10 @@ export function IssuerDashboard() {
         return next;
       });
       form.reset();
+      setCredentialId("");
       setDocumentHash("");
       setFileName("");
+      setSelectedDocument(null);
       setView("overview");
       setNotice({ tone: "success", text: `${credentialId} was confirmed on ${network.name}.` });
     } catch (error) {
@@ -700,11 +706,12 @@ export function IssuerDashboard() {
               <form className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" onSubmit={issueCredential}>
                 <div className="border-b border-slate-200 pb-5"><p className="text-xs font-semibold text-blue-700">New registry entry</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Issue credential</h2><p className="mt-1 text-sm text-slate-600">The wallet signs a transaction containing only one-way fingerprints.</p></div>
                 <div className="mt-6 space-y-5">
-                  <label className={labelClass}>Credential ID<input className={`${inputClass} font-mono`} name="credentialId" required placeholder="Enter the institution-issued identifier" autoComplete="off" /></label>
+                  <label className={labelClass}>Credential ID<input className={`${inputClass} font-mono`} name="credentialId" required placeholder="Enter the institution-issued identifier" autoComplete="off" value={credentialId} onChange={(event) => setCredentialId(event.target.value)} /></label>
                   <label className={labelClass}>Source document<span className="mt-1 block text-xs font-normal leading-5 text-slate-500">The file stays on this device. EduTrust calculates its SHA-256 fingerprint locally.</span><input className={`${inputClass} file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700`} name="document" type="file" accept="application/pdf,image/*" required onChange={(event) => selectDocument(event.target.files?.[0])} /></label>
                   <label className={labelClass}>Document fingerprint<input className={`${inputClass} font-mono text-slate-500`} readOnly value={documentHash} placeholder="Calculated after a document is selected" /></label>
+                  <LocalDocumentReview document={selectedDocument} credentialId={credentialId} />
                 </div>
-                <div className="mt-5 flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-800"><ShieldCheckIcon className="mt-0.5 size-5 shrink-0" /><p><strong>Privacy-preserving issuance.</strong> The selected document and its contents are never uploaded by this interface.</p></div>
+                <div className="mt-5 flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-800"><ShieldCheckIcon className="mt-0.5 size-5 shrink-0" /><p><strong>Privacy-preserving issuance.</strong> Fingerprinting and optional OCR review run locally. The selected document and extracted text are never uploaded by this interface.</p></div>
                 <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end"><button type="button" className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setView("overview")}>Cancel</button><button className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:cursor-wait disabled:bg-blue-400" disabled={submitting}>{submitting ? "Waiting for confirmation…" : account ? "Issue credential" : "Connect wallet and issue"}</button></div>
               </form>
 
