@@ -21,6 +21,12 @@ export class CompatibleEthersAdapter extends EthersAdapter {
     }
 
     let connectionActive = true;
+    const requestProvider = originalProvider as unknown as {
+      request(request: {
+        readonly method: string;
+        readonly params?: readonly unknown[] | object;
+      }): Promise<unknown>;
+    };
     const compatibilityProvider = new Proxy(originalProvider, {
       get(target, property, receiver) {
         if (property === "request") {
@@ -30,13 +36,13 @@ export class CompatibleEthersAdapter extends EthersAdapter {
               readonly params?: readonly unknown[] | object;
             },
           ): Promise<T> => {
-            const value = await target.request<T>(request);
+            const value = await requestProvider.request(request);
 
             if (connectionActive && request.method === "eth_chainId") {
-              return params.chainId as T;
+              return params.chainId as unknown as T;
             }
 
-            return value;
+            return value as T;
           };
         }
 
