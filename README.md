@@ -56,6 +56,23 @@ Public verification is read-only and does not require a wallet, account, or tran
 
 Every revocation caller must have `ISSUER_ROLE`. Within that set, only the original issuer or a wallet that also has `DEFAULT_ADMIN_ROLE` can revoke the credential. The human-readable reason is not sent on-chain or stored by the application.
 
+
+### 4. Share or bulk issue credentials
+
+Each activity row can generate a QR code containing a public route in the form `/verify/{network}/{credentialIdHash}`. The route selects the correct BOT Chain network and performs the registry lookup automatically. The QR contains no document, student name, grade, or contact information.
+
+For batches, upload a CSV with this header:
+
+```csv
+credentialId,documentHash
+```
+
+The institution portal validates the rows and submits them sequentially. Each row is an independent wallet transaction, so confirmed credentials are not repeated when another row fails.
+
+### Verified institution profiles
+
+The verifier always displays the canonical issuer wallet. When that wallet also has a reviewed EduTrust profile, the response adds the institution name, category, website, country, and verification basis. Profile metadata is server-side configuration; holding `ISSUER_ROLE` alone does not permit a wallet to invent a verified organisation name.
+
 ## How it works
 
 ```mermaid
@@ -79,7 +96,9 @@ The blockchain is the source of truth for credential existence, issuer, fingerpr
 - Plaintext credential-ID lookup or direct `bytes32` lookup
 - Valid, revoked, unknown, and document-mismatch results
 - Optional comparison against a supplied SHA-256 fingerprint
+- Verified institution name and category when the issuer has a reviewed profile
 - Issuer address, issue date, revocation state, and BOTScan contract link
+- QR deep links that select the correct BOT Chain network and verify immediately
 - No account or wallet required
 
 ### Institution portal
@@ -88,10 +107,12 @@ The blockchain is the source of truth for credential existence, issuer, fingerpr
 - Mainnet/Testnet switching before transaction signing
 - Local SHA-256 hashing of PDF and image files
 - Wallet-backed credential issuance
+- CSV bulk issuance for up to 100 prepared credential/document fingerprints
 - Transaction preview showing chain, issuer, contract, and document fingerprint
 - On-chain issuance history restored by wallet and network
 - Credential revocation with a locally hashed reason
 - Wallet management and explicit disconnection so another wallet can connect
+- QR code and shareable verification link for every issued record
 - BOTScan links for contract and transaction inspection
 
 ### Registry API
@@ -100,6 +121,7 @@ The blockchain is the source of truth for credential existence, issuer, fingerpr
 - Canonical credential lookup
 - Issuer activity reconstructed from on-chain events
 - Current status resolution for issued credentials, including revocations
+- Verified institution profile resolution for known issuer wallets
 - Validation for network keys, credential IDs, and issuer addresses
 - `502` response when the selected BOT Chain RPC cannot be reached
 
@@ -260,8 +282,9 @@ The public verifier is available at `/`; the issuer workspace is available at `/
 | --- | --- | --- |
 | `NEXT_PUBLIC_REOWN_PROJECT_ID` | No | Public Reown application identifier used for wallet discovery and WalletConnect. A project default is included. |
 | `NEXT_PUBLIC_EDUTRUST_REGISTRY_ADDRESS` | No | Overrides the deployed registry address used by both supported networks. |
+| `EDUTRUST_INSTITUTION_PROFILES_JSON` | No | Server-only JSON array of reviewed institution profiles keyed by issuer wallet. |
 
-Both variables are client-visible configuration, not wallet secrets. Never place a private key, seed phrase, or keystore password in a `NEXT_PUBLIC_*` variable.
+`NEXT_PUBLIC_REOWN_PROJECT_ID` and `NEXT_PUBLIC_EDUTRUST_REGISTRY_ADDRESS` are client-visible configuration, not wallet secrets. `EDUTRUST_INSTITUTION_PROFILES_JSON` is server-only and must not use the `NEXT_PUBLIC_` prefix. Never place a private key, seed phrase, or keystore password in a public variable.
 
 ## Registry API reference
 
@@ -422,6 +445,9 @@ Changes pushed to the connected production branch can be deployed automatically 
 
 Working today:
 
+- verified institution profile resolution for reviewed issuer wallets
+- QR verification links that preserve the credential hash and network
+- CSV bulk issuance with per-row progress and retryable failures
 - BOT Chain Mainnet and Testnet registry reads
 - wallet-authorised issuance and revocation
 - public status and fingerprint verification
@@ -431,12 +457,12 @@ Working today:
 
 Future production extensions:
 
-- institution onboarding, identity verification, and admin UI for role management
+- self-service institution onboarding and evidence review
 - encrypted institutional database and private object storage
 - student/graduate delivery portal
-- generated credential PDFs, QR verification links, and selective disclosure
-- AI/OCR extraction and human-readable document-difference explanations
-- bulk issuance, registrar approval workflows, and school-system integrations
+- generated credential PDFs and selective disclosure
+- privacy-approved AI/OCR extraction and human-readable document-difference explanations
+- registrar approval workflows and school-system integrations
 - decentralised or redundant RPC/indexing infrastructure
 - independent smart-contract audit, operational monitoring, and incident procedures
 
