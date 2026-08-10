@@ -114,6 +114,7 @@ export async function GET(request: Request) {
           address: account,
           isAdmin: Boolean(isAdmin),
           isIssuer: Boolean(isIssuer),
+          profile: institutionProfileForWallet(account),
         },
         issuers,
         network: selectedNetwork.name,
