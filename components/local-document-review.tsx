@@ -313,7 +313,11 @@ async function readImage(
       totalPages: 1,
     };
   } finally {
-    await worker.terminate();
+    try {
+      await worker.terminate();
+    } catch (error) {
+      console.warn("Local OCR worker cleanup was skipped.", error);
+    }
   }
 }
 
@@ -323,7 +327,8 @@ async function readPdf(
 ) {
   const pdfjs = await loadPdfJs();
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  const pagesToReview = Math.min(pdf.numPages, MAX_PDF_PAGES);
+  const totalPages = pdf.numPages;
+  const pagesToReview = Math.min(totalPages, MAX_PDF_PAGES);
   const text: string[] = [];
   const confidenceValues: number[] = [];
   let worker: OcrWorker | null = null;
@@ -372,7 +377,7 @@ async function readPdf(
     text: text.join("\n"),
     confidenceValues,
     pagesReviewed: pagesToReview,
-    totalPages: pdf.numPages,
+    totalPages,
   };
 }
 
