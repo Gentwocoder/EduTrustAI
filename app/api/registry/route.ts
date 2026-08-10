@@ -8,6 +8,7 @@ import {
   REGISTRY_ABI,
   REGISTRY_ADDRESS,
 } from "@/lib/registry";
+import { institutionProfileForWallet } from "@/lib/institutions";
 
 export const dynamic = "force-dynamic";
 
@@ -102,7 +103,11 @@ export async function GET(request: Request) {
 
       const issuers = issuerChecks
         .filter((item) => item.active)
-        .sort((left, right) => right.blockNumber - left.blockNumber);
+        .sort((left, right) => right.blockNumber - left.blockNumber)
+        .map((item) => ({
+          ...item,
+          profile: institutionProfileForWallet(item.account),
+        }));
 
       return Response.json({
         account: {
@@ -174,6 +179,7 @@ export async function GET(request: Request) {
       credentialIdHash,
       documentHash: record.documentHash,
       issuer: record.issuer,
+      institutionProfile: institutionProfileForWallet(String(record.issuer)),
       issuedAt: Number(record.issuedAt),
       revokedAt: Number(record.revokedAt),
       status: credentialStatus(status),
