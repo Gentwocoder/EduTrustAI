@@ -177,3 +177,24 @@ export function ShieldCheckIcon(props: IconProps) {
     </IconBase>
   );
 }
+
+export function UsersIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M16 20v-1.5a4.5 4.5 0 0 0-4.5-4.5h-4A4.5 4.5 0 0 0 3 18.5V20" />
+      <circle cx="9.5" cy="7.5" r="3.5" />
+      <path d="M16 4.5a3.5 3.5 0 0 1 0 6.8" />
+      <path d="M18 14.5a4.5 4.5 0 0 1 3 4.25V20" />
+    </IconBase>
+  );
+}
+
+export function UserPlusIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <circle cx="9" cy="8" r="4" />
+      <path d="M2.5 21v-2a5.5 5.5 0 0 1 5.5-5.5h2a5.5 5.5 0 0 1 5.5 5.5v2" />
+      <path d="M19 8v6M16 11h6" />
+    </IconBase>
+  );
+}
