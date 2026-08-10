@@ -67,7 +67,7 @@ type PdfPage = {
 type PdfDocument = {
   numPages: number;
   getPage: (pageNumber: number) => Promise<PdfPage>;
-  destroy: () => Promise<void>;
+  destroy?: () => Promise<void>;
 };
 
 type PdfJsApi = {
@@ -356,8 +356,16 @@ async function readPdf(
       canvas.height = 1;
     }
   } finally {
-    await worker?.terminate();
-    await pdf.destroy();
+    try {
+      await worker?.terminate();
+    } catch (error) {
+      console.warn("Local OCR worker cleanup was skipped.", error);
+    }
+    try {
+      if (typeof pdf.destroy === "function") await pdf.destroy();
+    } catch (error) {
+      console.warn("Local PDF reader cleanup was skipped.", error);
+    }
   }
 
   return {
