@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { BrowserProvider, Contract, id as hashText, sha256 } from "ethers";
+import { BrowserProvider, Contract, id as hashText, isAddress, sha256 } from "ethers";
 import {
   useAppKit,
   useAppKitAccount,
@@ -21,7 +21,13 @@ import {
   walletNetworkErrorMessage,
   type WalletRequestProvider,
 } from "@/lib/wallet-network";
-import { REGISTRY_ABI, REGISTRY_ADDRESS, registryExplorerUrl, type BotNetworkKey } from "@/lib/registry";
+import {
+  ISSUER_ROLE,
+  REGISTRY_ABI,
+  REGISTRY_ADDRESS,
+  registryExplorerUrl,
+  type BotNetworkKey,
+} from "@/lib/registry";
 import { friendlyTransactionError } from "@/lib/transaction-errors";
 import {
   AlertCircleIcon,
@@ -35,6 +41,8 @@ import {
   LogOutIcon,
   PlusIcon,
   ShieldCheckIcon,
+  UserPlusIcon,
+  UsersIcon,
   WalletIcon,
   XIcon,
 } from "@/components/icons";
@@ -68,9 +76,42 @@ type Notice = {
   text: string;
 };
 
+type IssuerRecord = {
+  account: string;
+  changedBy: string;
+  transactionHash: string;
+  blockNumber: number;
+  active: boolean;
+};
+
+type RoleData = {
+  account: {
+    address: string;
+    isAdmin: boolean;
+    isIssuer: boolean;
+  };
+  issuers: IssuerRecord[];
+};
+
 const inputClass = "mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
 const labelClass = "text-xs font-semibold text-slate-700";
 const activityStoragePrefix = "edutrust:issuance:v2:";
+
+async function fetchRoleData(
+  address: string,
+  networkKey: BotNetworkKey,
+): Promise<RoleData> {
+  const response = await fetch(
+    `/api/registry?network=${networkKey}&roles=true&account=${encodeURIComponent(address)}`,
+  );
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null) as { message?: string } | null;
+    throw new Error(data?.message ?? "Issuer access could not be loaded.");
+  }
+
+  return response.json() as Promise<RoleData>;
+}
 
 function shortValue(value: string, start = 8, end = 6) {
   return `${value.slice(0, start)}…${value.slice(-end)}`;
@@ -132,7 +173,7 @@ export function IssuerDashboard() {
   const { walletProvider } = useAppKitProvider<Provider>("eip155");
   const { disconnect } = useDisconnect();
   const account = address ?? "";
-  const [view, setView] = useState<"overview" | "issue">("overview");
+  const [view, setView] = useState<"overview" | "issue" | "issuers">("overview");
   const [documentHash, setDocumentHash] = useState("");
   const [fileName, setFileName] = useState("");
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -143,6 +184,11 @@ export function IssuerDashboard() {
   const [revokeTarget, setRevokeTarget] = useState<Activity | null>(null);
   const [revocationReason, setRevocationReason] = useState("");
   const [revoking, setRevoking] = useState(false);
+  const [roleAccess, setRoleAccess] = useState({ isAdmin: false, isIssuer: false });
+  const [issuers, setIssuers] = useState<IssuerRecord[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+  const [managingIssuer, setManagingIssuer] = useState(false);
+  const [issuerToRemove, setIssuerToRemove] = useState<IssuerRecord | null>(null);
   const preparedNetworkRef = useRef("");
 
   useEffect(() => {
@@ -179,6 +225,49 @@ export function IssuerDashboard() {
     }
 
     void loadWalletActivity();
+
+    return () => {
+      active = false;
+    };
+  }, [account, networkKey]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadRoleAccess() {
+      await Promise.resolve();
+      if (!active) return;
+
+      if (!account) {
+        setRoleAccess({ isAdmin: false, isIssuer: false });
+        setIssuers([]);
+        setLoadingRoles(false);
+        setView((current) => current === "issuers" ? "overview" : current);
+        return;
+      }
+
+      setLoadingRoles(true);
+      try {
+        const data = await fetchRoleData(account, networkKey);
+        if (!active) return;
+        setRoleAccess({
+          isAdmin: data.account.isAdmin,
+          isIssuer: data.account.isIssuer,
+        });
+        setIssuers(data.issuers);
+        if (!data.account.isAdmin) {
+          setView((current) => current === "issuers" ? "overview" : current);
+        }
+      } catch {
+        if (!active) return;
+        setRoleAccess({ isAdmin: false, isIssuer: false });
+        setIssuers([]);
+      } finally {
+        if (active) setLoadingRoles(false);
+      }
+    }
+
+    void loadRoleAccess();
 
     return () => {
       active = false;
@@ -283,6 +372,98 @@ export function IssuerDashboard() {
       setNotice({ tone: "success", text: "Wallet disconnected from EduTrust." });
     } catch (error) {
       setNotice({ tone: "error", text: error instanceof Error ? error.message : "The wallet could not be disconnected." });
+    }
+  }
+
+  async function refreshRoleData() {
+    if (!account) return;
+    const data = await fetchRoleData(account, networkKey);
+    setRoleAccess({
+      isAdmin: data.account.isAdmin,
+      isIssuer: data.account.isIssuer,
+    });
+    setIssuers(data.issuers);
+  }
+
+  async function approveIssuer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const issuerAddress = String(data.get("issuerAddress") ?? "").trim();
+
+    if (!isAddress(issuerAddress)) {
+      setNotice({
+        tone: "error",
+        title: "Invalid wallet address",
+        text: "Enter a complete EVM wallet address beginning with 0x.",
+      });
+      return;
+    }
+
+    if (issuers.some((item) => item.account.toLowerCase() === issuerAddress.toLowerCase())) {
+      setNotice({
+        tone: "error",
+        title: "Wallet already authorised",
+        text: "This wallet already has permission to issue credentials on the selected network.",
+      });
+      return;
+    }
+
+    setManagingIssuer(true);
+    setNotice(null);
+    try {
+      const signer = await getSigner();
+      const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, signer);
+      const transaction = await registry.grantRole(ISSUER_ROLE, issuerAddress);
+      await transaction.wait();
+      await refreshRoleData();
+      form.reset();
+      setNotice({
+        tone: "success",
+        title: "Issuer wallet approved",
+        text: `${shortValue(issuerAddress)} can now issue credentials on ${network.name}.`,
+      });
+    } catch (error) {
+      console.error("Issuer approval failed", error);
+      const friendly = friendlyTransactionError(error, "grantIssuer", network.name);
+      setNotice({
+        tone: "error",
+        title: friendly.title,
+        text: friendly.message,
+      });
+    } finally {
+      setManagingIssuer(false);
+    }
+  }
+
+  async function removeIssuer() {
+    if (!issuerToRemove) return;
+
+    setManagingIssuer(true);
+    setNotice(null);
+    try {
+      const signer = await getSigner();
+      const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, signer);
+      const transaction = await registry.revokeRole(ISSUER_ROLE, issuerToRemove.account);
+      await transaction.wait();
+      const removedAddress = issuerToRemove.account;
+      setIssuerToRemove(null);
+      await refreshRoleData();
+      setNotice({
+        tone: "success",
+        title: "Issuer access removed",
+        text: `${shortValue(removedAddress)} can no longer issue new credentials on ${network.name}.`,
+      });
+    } catch (error) {
+      console.error("Issuer removal failed", error);
+      const friendly = friendlyTransactionError(error, "revokeIssuer", network.name);
+      setNotice({
+        tone: "error",
+        title: friendly.title,
+        text: friendly.message,
+      });
+    } finally {
+      setManagingIssuer(false);
     }
   }
 
@@ -412,6 +593,7 @@ export function IssuerDashboard() {
           <nav className="space-y-1" aria-label="Institution portal">
             <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "overview" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("overview")}><HomeIcon className="size-5 shrink-0" />Overview</button>
             <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "issue" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("issue")}><PlusIcon className="size-5 shrink-0" />Issue credential</button>
+            {roleAccess.isAdmin && <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "issuers" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("issuers")}><UsersIcon className="size-5 shrink-0" />Issuer management</button>}
             <a className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href={registryExplorerUrl(network)} target="_blank" rel="noreferrer"><ExternalLinkIcon className="size-5 shrink-0" />BOT explorer</a>
           </nav>
 
@@ -428,7 +610,7 @@ export function IssuerDashboard() {
 
       <section className="min-w-0">
         <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 lg:px-8">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Institution portal</p><h1 className="mt-0.5 text-sm font-semibold text-slate-900">{view === "overview" ? "Credential registry" : "Issue a credential"}</h1></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Institution portal</p><h1 className="mt-0.5 text-sm font-semibold text-slate-900">{view === "overview" ? "Credential registry" : view === "issue" ? "Issue a credential" : "Issuer management"}</h1></div>
           <div className="flex items-center gap-2">
             <NetworkSwitcher compact className="hidden sm:inline-flex" />
             {account ? (
@@ -464,7 +646,10 @@ export function IssuerDashboard() {
           <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
               <div><p className="text-xs font-semibold text-blue-700">BOT Chain registry</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Credential activity</h2><p className="mt-1 text-sm text-slate-600">Connect an authorised wallet to issue credentials and manage their current on-chain status.</p></div>
-              <button className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" onClick={() => setView("issue")}><PlusIcon className="mr-2 size-4" /> <span>Issue credential</span></button>
+              <div className="flex flex-wrap gap-2">
+                {roleAccess.isAdmin && <button className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200" onClick={() => setView("issuers")}><UsersIcon className="mr-2 size-4" />Manage issuers</button>}
+                <button className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" onClick={() => setView("issue")}><PlusIcon className="mr-2 size-4" /> <span>Issue credential</span></button>
+              </div>
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -484,7 +669,7 @@ export function IssuerDashboard() {
               )}
             </section>
           </div>
-        ) : (
+        ) : view === "issue" ? (
           <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
             <button className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-950" onClick={() => setView("overview")}><ArrowLeftIcon className="size-4" /> Back to registry</button>
             <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]">
@@ -512,6 +697,76 @@ export function IssuerDashboard() {
                 <div className="mt-4 rounded-lg bg-slate-50 p-3"><strong className="text-xs font-semibold text-slate-800">Never written on-chain</strong><p className="mt-1 text-xs leading-5 text-slate-500">Student name · Grade · Certificate file · Contact details</p></div>
               </aside>
             </div>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
+            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <p className="text-xs font-semibold text-blue-700">Registry administration</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Issuer management</h2>
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">Approve trusted institution wallets and remove access when responsibilities change. Every update is recorded on {network.name}.</p>
+              </div>
+              <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800"><ShieldCheckIcon className="size-4" />Administrator verified</span>
+            </div>
+
+            <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(300px,.72fr)_minmax(0,1.28fr)]">
+              <div className="space-y-5">
+                <form className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={approveIssuer}>
+                  <span className="grid size-10 place-items-center rounded-lg bg-blue-50 text-blue-700"><UserPlusIcon className="size-5" /></span>
+                  <h3 className="mt-4 text-base font-semibold text-slate-950">Approve issuer wallet</h3>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">The approved wallet will be able to issue credentials and revoke credentials it originally issued.</p>
+                  <label className={`${labelClass} mt-5 block`}>Wallet address<input className={`${inputClass} font-mono`} name="issuerAddress" required placeholder="0x…" autoComplete="off" spellCheck={false} /></label>
+                  <button className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:cursor-wait disabled:bg-blue-400" disabled={managingIssuer || loadingRoles}><UserPlusIcon className="size-4" />{managingIssuer ? "Waiting for confirmation…" : "Approve issuer"}</button>
+                </form>
+
+                <aside className="rounded-xl border border-slate-200 bg-slate-100/70 p-4">
+                  <div className="flex gap-3"><ShieldCheckIcon className="mt-0.5 size-5 shrink-0 text-slate-600" /><div><h3 className="text-sm font-semibold text-slate-900">Permissioned by design</h3><p className="mt-1 text-sm leading-6 text-slate-600">Only the registry administrator can change issuer access. Removing access prevents new issuance but does not alter existing credentials.</p></div></div>
+                </aside>
+              </div>
+
+              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-5">
+                  <div><h3 className="text-base font-semibold text-slate-900">Authorised issuers</h3><p className="mt-1 text-sm text-slate-500">{network.name}</p></div>
+                  <span className="rounded-md bg-slate-100 px-2.5 py-1.5 text-sm font-semibold text-slate-700">{loadingRoles ? "…" : issuers.length}</span>
+                </div>
+                {loadingRoles ? (
+                  <div className="px-5 py-14 text-center text-sm font-medium text-slate-600">Loading issuer permissions…</div>
+                ) : issuers.length === 0 ? (
+                  <div className="px-5 py-14 text-center"><span className="mx-auto grid size-11 place-items-center rounded-lg bg-slate-100 text-slate-500"><UsersIcon className="size-5" /></span><h4 className="mt-3 text-base font-semibold text-slate-900">No issuer history found</h4><p className="mt-1 text-sm text-slate-500">Approve the first issuer wallet for this network.</p></div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {issuers.map((issuer) => {
+                      const isCurrentWallet = issuer.account.toLowerCase() === account.toLowerCase();
+                      return (
+                        <article className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between" key={issuer.account}>
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="grid size-10 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-700"><WalletIcon className="size-5" /></span>
+                            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-sm text-slate-900" title={issuer.account}>{shortValue(issuer.account, 8, 6)}</strong>{isCurrentWallet && <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">Current wallet</span>}</div><a className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-700" href={`${network.explorerUrl}/tx/${issuer.transactionHash}`} target="_blank" rel="noreferrer">Approval transaction <ExternalLinkIcon className="size-3.5" /></a></div>
+                          </div>
+                          {isCurrentWallet ? (
+                            <span className="text-xs font-medium text-slate-500">Protected from self-removal</span>
+                          ) : (
+                            <button className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-wait disabled:text-red-300" type="button" onClick={() => { setIssuerToRemove(issuer); setNotice(null); }} disabled={managingIssuer}><BanIcon className="size-4" />Remove access</button>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        )}
+
+        {issuerToRemove && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" role="presentation">
+            <section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="remove-issuer-title">
+              <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-red-700">Access control change</p><h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950" id="remove-issuer-title">Remove issuer access</h2></div><button className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed" type="button" onClick={() => setIssuerToRemove(null)} disabled={managingIssuer} aria-label="Close issuer removal dialog"><XIcon className="size-5" /></button></div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">This wallet will no longer be able to issue new credentials or perform issuer-only actions on {network.name}.</p>
+              <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-sm font-semibold text-slate-800">{issuerToRemove.account}</div>
+              <p className="mt-3 text-xs leading-5 text-slate-500">Previously issued credentials remain on-chain and keep their current status.</p>
+              <div className="mt-5 flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end"><button className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed" type="button" onClick={() => setIssuerToRemove(null)} disabled={managingIssuer}>Cancel</button><button className="rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800 disabled:cursor-wait disabled:bg-red-400" type="button" onClick={removeIssuer} disabled={managingIssuer}>{managingIssuer ? "Waiting for confirmation…" : "Remove access"}</button></div>
+            </section>
           </div>
         )}
 
