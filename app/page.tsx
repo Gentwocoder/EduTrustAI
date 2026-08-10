@@ -3,6 +3,7 @@ import { Brand } from "@/components/brand";
 import { NetworkSwitcher } from "@/components/network-switcher";
 import { RegistryOverview } from "@/components/registry-overview";
 import { VerificationDemo } from "@/components/verification-demo";
+import { ArrowRightIcon, CheckCircleIcon, LockIcon, SearchIcon } from "@/components/icons";
 
 const workflow = [
   { number: "01", title: "Institution issues", body: "An authorised officer creates the academic record and confirms the source document." },
@@ -24,7 +25,7 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <NetworkSwitcher compact className="hidden lg:inline-flex" />
             <Link className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="/dashboard">
-              Institution portal
+              Institution portal <ArrowRightIcon className="ml-2 size-4" />
             </Link>
           </div>
         </nav>
@@ -39,13 +40,13 @@ export default function Home() {
             <h1 className="text-4xl font-semibold tracking-[-0.035em] text-slate-950 sm:text-5xl lg:text-[3.4rem] lg:leading-[1.06]">Verify academic records without waiting on the registrar.</h1>
             <p className="mt-5 max-w-lg text-base leading-7 text-slate-600">EduTrust gives schools a controlled issuance workspace and gives employers a direct way to confirm credentials against an auditable BOT Chain record.</p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <a className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="#verification">Verify a credential</a>
-              <Link className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="/dashboard">Open issuer workspace</Link>
+              <a className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="#verification"><SearchIcon className="size-4" /> Verify a credential</a>
+              <Link className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="/dashboard">Open issuer workspace <ArrowRightIcon className="size-4" /></Link>
             </div>
             <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 border-t border-slate-200 pt-5 text-xs text-slate-600">
-              <span className="flex items-center gap-2"><b className="text-emerald-600">✓</b> No student files on-chain</span>
-              <span className="flex items-center gap-2"><b className="text-emerald-600">✓</b> Role-controlled issuance</span>
-              <span className="flex items-center gap-2"><b className="text-emerald-600">✓</b> Permanent audit status</span>
+              <span className="flex items-center gap-2"><CheckCircleIcon className="size-4 shrink-0 text-emerald-600" /> No student files on-chain</span>
+              <span className="flex items-center gap-2"><CheckCircleIcon className="size-4 shrink-0 text-emerald-600" /> Role-controlled issuance</span>
+              <span className="flex items-center gap-2"><CheckCircleIcon className="size-4 shrink-0 text-emerald-600" /> Permanent audit status</span>
             </div>
           </div>
 
@@ -92,7 +93,7 @@ export default function Home() {
               <span className="rounded-md bg-blue-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700">Public</span>
             </div>
             <ul className="mt-2 divide-y divide-slate-100 text-sm">
-              {["Issuing institution", "Qualification and issue date", "Credential lifecycle status", "Document fingerprint match"].map((item) => <li className="flex items-center justify-between py-3 text-slate-700" key={item}><span>{item}</span><span className="text-emerald-600">✓</span></li>)}
+              {["Issuing institution", "Qualification and issue date", "Credential lifecycle status", "Document fingerprint match"].map((item) => <li className="flex items-center justify-between py-3 text-slate-700" key={item}><span>{item}</span><CheckCircleIcon className="size-4 text-emerald-600" /></li>)}
             </ul>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -101,7 +102,7 @@ export default function Home() {
               <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">Restricted</span>
             </div>
             <ul className="mt-2 divide-y divide-slate-100 text-sm">
-              {["Original certificate PDF", "Student email and contact details", "Full academic transcript", "Internal registrar notes"].map((item) => <li className="flex items-center justify-between py-3 text-slate-700" key={item}><span>{item}</span><span className="text-slate-400">—</span></li>)}
+              {["Original certificate PDF", "Student email and contact details", "Full academic transcript", "Internal registrar notes"].map((item) => <li className="flex items-center justify-between py-3 text-slate-700" key={item}><span>{item}</span><LockIcon className="size-4 text-slate-400" /></li>)}
             </ul>
           </div>
         </div>
@@ -111,7 +112,7 @@ export default function Home() {
         <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
           <div className="flex flex-col items-start justify-between gap-6 rounded-xl border border-slate-200 bg-slate-950 px-6 py-8 sm:px-8 lg:flex-row lg:items-center">
             <div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-300">Institution access</p><h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">Manage issuance from a focused registrar workspace.</h2><p className="mt-2 text-sm leading-6 text-slate-300">Review registry totals, issue new credentials, revoke compromised records and inspect the chain payload before signing.</p></div>
-            <Link className="inline-flex shrink-0 items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-950" href="/dashboard">Open institution portal <span className="ml-2" aria-hidden="true">→</span></Link>
+            <Link className="inline-flex shrink-0 items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold !text-white transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-950" href="/dashboard">Open institution portal <ArrowRightIcon className="ml-2 size-4" /></Link>
           </div>
         </div>
       </section>
