@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { isHexString } from "ethers";
 import { useBotNetwork } from "@/components/network-provider";
-import { registryExplorerUrl } from "@/lib/registry";
+import { registryExplorerUrl, type BotNetworkKey } from "@/lib/registry";
 import { AlertCircleIcon, CheckCircleIcon, CircleHelpIcon, ExternalLinkIcon, SearchIcon } from "@/components/icons";
 
 type RegistryRecord = {
@@ -13,6 +13,16 @@ type RegistryRecord = {
   issuedAt: number;
   revokedAt: number;
   status: "valid" | "revoked" | "unknown";
+  institutionProfile: {
+    id: string;
+    name: string;
+    category: string;
+    wallet: string;
+    website?: string;
+    country?: string;
+    verified: true;
+    verificationMethod: string;
+  } | null;
 };
 
 type ResultState = "idle" | "loading" | "ready" | "error";
@@ -44,14 +54,28 @@ function shortHash(value: string) {
   return `${value.slice(0, 10)}…${value.slice(-8)}`;
 }
 
-export function VerificationDemo() {
-  const { network, networkKey } = useBotNetwork();
+export function VerificationDemo({
+  initialCredentialId = "",
+  initialNetworkKey,
+  autoVerify = false,
+}: {
+  initialCredentialId?: string;
+  initialNetworkKey?: BotNetworkKey;
+  autoVerify?: boolean;
+} = {}) {
+  const { network, networkKey, selectNetwork } = useBotNetwork();
   const [credentialId, setCredentialId] = useState("");
   const [documentHash, setDocumentHash] = useState("");
   const [state, setState] = useState<ResultState>("idle");
   const [record, setRecord] = useState<RegistryRecord | null>(null);
   const [message, setMessage] = useState("");
   const [registryOnline, setRegistryOnline] = useState<boolean | null>(null);
+  const automaticVerification = useRef("");
+
+  useEffect(() => {
+    if (initialNetworkKey) selectNetwork(initialNetworkKey);
+    if (initialCredentialId) setCredentialId(initialCredentialId);
+  }, [initialCredentialId, initialNetworkKey, selectNetwork]);
 
   useEffect(() => {
     let active = true;
@@ -73,8 +97,8 @@ export function VerificationDemo() {
     };
   }, [networkKey]);
 
-  async function verify(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  const verifyCredential = useCallback(async (credentialOverride?: string) => {
+    const candidate = credentialOverride ?? credentialId;
     setState("loading");
     setRecord(null);
     setMessage("");
@@ -86,7 +110,7 @@ export function VerificationDemo() {
     }
 
     try {
-      const response = await fetch(`/api/registry?network=${networkKey}&credentialId=${encodeURIComponent(credentialId)}`);
+      const response = await fetch(`/api/registry?network=${networkKey}&credentialId=${encodeURIComponent(candidate)}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.message);
       setRecord(data);
@@ -95,6 +119,20 @@ export function VerificationDemo() {
       setMessage(error instanceof Error ? error.message : "Verification could not be completed.");
       setState("error");
     }
+  }, [credentialId, documentHash, networkKey]);
+
+  useEffect(() => {
+    if (!autoVerify || !initialCredentialId || registryOnline !== true) return;
+    if (initialNetworkKey && initialNetworkKey !== networkKey) return;
+    const key = `${networkKey}:${initialCredentialId}`;
+    if (automaticVerification.current === key) return;
+    automaticVerification.current = key;
+    void verifyCredential(initialCredentialId);
+  }, [autoVerify, initialCredentialId, initialNetworkKey, networkKey, registryOnline, verifyCredential]);
+
+  function verify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void verifyCredential();
   }
 
   const fingerprintMatches = record && documentHash
@@ -185,6 +223,7 @@ export function VerificationDemo() {
             <dl className="mt-4 grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200 sm:grid-cols-2">
               <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Registry status</dt><dd className={`mt-1 text-xs font-semibold ${record.status === "valid" ? "text-emerald-700" : "text-red-700"}`}>{record.status === "valid" ? "Valid" : "Revoked"}</dd></div>
               <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Issued</dt><dd className="mt-1 text-sm font-semibold text-slate-800">{new Date(record.issuedAt * 1000).toLocaleString()}</dd></div>
+              <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Issuing institution</dt><dd className="mt-1 text-sm font-semibold text-slate-800">{record.institutionProfile?.name ?? "Authorised issuer"}</dd>{record.institutionProfile?.verified && <span className="mt-1 inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">Verified profile</span>}</div>
               <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Issuer wallet</dt><dd className="mt-1 font-mono text-xs font-semibold text-slate-800" title={record.issuer}>{shortHash(record.issuer)}</dd></div>
               <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Document check</dt><dd className="mt-1 text-sm font-semibold text-slate-800">{fingerprintMatches === null ? "Not supplied" : fingerprintMatches ? "Fingerprint matched" : "Fingerprint mismatch"}</dd></div>
             </dl>
