@@ -1,14 +1,16 @@
-export const BOT_TESTNET = {
-  chainId: 968,
-  chainIdHex: "0x3c8",
-  name: "BOT Chain Testnet",
-  rpcUrl: "https://rpc.bohr.life",
-  explorerUrl: "https://scan.bohr.life",
+export const BOT_MAINNET = {
+  chainId: 677,
+  chainIdHex: "0x2a5",
+  name: "BOT Chain Mainnet",
+  rpcUrl: "https://rpc.botchain.ai",
+  explorerUrl: "https://scan.botchain.ai",
 } as const;
 
 export const REGISTRY_ADDRESS =
   process.env.NEXT_PUBLIC_EDUTRUST_REGISTRY_ADDRESS ??
   "0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f";
+
+export const REGISTRY_DEPLOYMENT_BLOCK = 19177944;
 
 export const REGISTRY_ABI = [
   "event CredentialIssued(bytes32 indexed credentialIdHash, bytes32 indexed documentHash, address indexed issuer, uint64 issuedAt)",
@@ -18,5 +20,5 @@ export const REGISTRY_ABI = [
 ] as const;
 
 export function registryExplorerUrl() {
-  return `${BOT_TESTNET.explorerUrl}/address/${REGISTRY_ADDRESS}`;
+  return `${BOT_MAINNET.explorerUrl}/address/${REGISTRY_ADDRESS}`;
 }

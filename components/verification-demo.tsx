@@ -88,7 +88,7 @@ export function VerificationDemo() {
           <StatusIcon />
           <div>
             <h2 id="verification-title" className="text-sm font-semibold text-slate-950">Verify a credential</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Read directly from the BOT Testnet registry</p>
+            <p className="mt-0.5 text-xs text-slate-500">Read directly from the BOT Chain Mainnet registry</p>
           </div>
         </div>
         <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-[11px] font-semibold ${registryOnline === true ? "border-emerald-200 bg-emerald-50 text-emerald-700" : registryOnline === false ? "border-red-200 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-600"}`}>

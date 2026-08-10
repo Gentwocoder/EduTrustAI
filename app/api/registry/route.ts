@@ -1,5 +1,5 @@
 import { Contract, EventLog, JsonRpcProvider, id as hashText, isAddress, isHexString } from "ethers";
-import { BOT_TESTNET, REGISTRY_ABI, REGISTRY_ADDRESS } from "@/lib/registry";
+import { BOT_MAINNET, REGISTRY_ABI, REGISTRY_ADDRESS, REGISTRY_DEPLOYMENT_BLOCK } from "@/lib/registry";
 
 export const dynamic = "force-dynamic";
 
@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   try {
     // Cloudflare requires network clients and their internal timers to be
     // created within the request lifecycle rather than at module scope.
-    const provider = new JsonRpcProvider(BOT_TESTNET.rpcUrl, BOT_TESTNET.chainId, {
+    const provider = new JsonRpcProvider(BOT_MAINNET.rpcUrl, BOT_MAINNET.chainId, {
       staticNetwork: true,
     });
     const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, provider);
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       }
 
       const filter = registry.filters.CredentialIssued(null, null, issuer);
-      const logs = await registry.queryFilter(filter, 0, "latest");
+      const logs = await registry.queryFilter(filter, REGISTRY_DEPLOYMENT_BLOCK, "latest");
       const activity = logs
         .filter((log): log is EventLog => log instanceof EventLog)
         .map((log) => ({
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       return Response.json({
         available: code !== "0x",
         chainId: Number(network.chainId),
-        network: BOT_TESTNET.name,
+        network: BOT_MAINNET.name,
         contractAddress: REGISTRY_ADDRESS,
       });
     }
@@ -68,7 +68,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("BOT registry request failed", error);
     return Response.json(
-      { message: "The BOT Testnet registry could not be reached. Please try again." },
+      { message: "The BOT Chain Mainnet registry could not be reached. Please try again." },
       { status: 502 },
     );
   }

@@ -48,7 +48,7 @@ export default function Home() {
           <div id="verification" className="scroll-mt-24">
             <div className="mb-3 flex items-center justify-between px-1 text-xs text-slate-500">
               <span className="font-medium">Public verification service</span>
-              <span className="font-mono">BOT Testnet · 968</span>
+              <span className="font-mono">BOT Mainnet · 677</span>
             </div>
             <VerificationDemo />
           </div>

@@ -7,7 +7,7 @@ EduTrust AI is a standalone hackathon MVP. Institutions issue privacy-safe crede
 ## What is included
 
 - Premium responsive public product site
-- Live public credential verification against the deployed BOT Testnet registry
+- Live public credential verification against the deployed BOT Chain Mainnet registry
 - Institution credential dashboard
 - Wallet-backed credential issuance
 - Privacy-focused Solidity registry
@@ -55,7 +55,7 @@ Deployment instructions are in [`contracts/README.md`](contracts/README.md). Nev
 
 ## Current MVP boundary
 
-The verifier and issuance flow connect directly to BOT Testnet. Institutional profiles, private academic records, durable activity history, generated credential PDFs, QR codes and OCR/AI document extraction remain outside the current standalone MVP.
+The verifier and issuance flow connect directly to BOT Chain Mainnet. Institutional profiles, private academic records, generated credential PDFs, QR codes and OCR/AI document extraction remain outside the current standalone MVP.
 
 ## Documentation
 

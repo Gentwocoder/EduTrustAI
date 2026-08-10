@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { BrowserProvider, Contract, id as hashText, sha256 } from "ethers";
 import { Brand } from "@/components/brand";
-import { BOT_TESTNET, REGISTRY_ABI, REGISTRY_ADDRESS, registryExplorerUrl } from "@/lib/registry";
+import { BOT_MAINNET, REGISTRY_ABI, REGISTRY_ADDRESS, registryExplorerUrl } from "@/lib/registry";
 
 type EthereumProvider = {
   request(args: { method: string; params?: unknown[] | Record<string, unknown> }): Promise<unknown>;
@@ -38,7 +38,7 @@ type ChainActivity = {
 
 const inputClass = "mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
 const labelClass = "text-xs font-semibold text-slate-700";
-const activityStoragePrefix = "edutrust:issuance:v1:";
+const activityStoragePrefix = "edutrust:issuance:v2:677:";
 
 function shortValue(value: string, start = 8, end = 6) {
   return `${value.slice(0, start)}…${value.slice(-end)}`;
@@ -177,7 +177,7 @@ export function IssuerDashboard() {
     try {
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: BOT_TESTNET.chainIdHex }],
+        params: [{ chainId: BOT_MAINNET.chainIdHex }],
       });
     } catch (error) {
       const code = (error as { code?: number }).code;
@@ -185,11 +185,11 @@ export function IssuerDashboard() {
       await window.ethereum.request({
         method: "wallet_addEthereumChain",
         params: [{
-          chainId: BOT_TESTNET.chainIdHex,
-          chainName: BOT_TESTNET.name,
+          chainId: BOT_MAINNET.chainIdHex,
+          chainName: BOT_MAINNET.name,
           nativeCurrency: { name: "BOT", symbol: "BOT", decimals: 18 },
-          rpcUrls: [BOT_TESTNET.rpcUrl],
-          blockExplorerUrls: [BOT_TESTNET.explorerUrl],
+          rpcUrls: [BOT_MAINNET.rpcUrl],
+          blockExplorerUrls: [BOT_MAINNET.explorerUrl],
         }],
       });
     }
@@ -280,7 +280,7 @@ export function IssuerDashboard() {
       setDocumentHash("");
       setFileName("");
       setView("overview");
-      setNotice({ tone: "success", text: `${credentialId} was confirmed on BOT Testnet.` });
+      setNotice({ tone: "success", text: `${credentialId} was confirmed on BOT Chain Mainnet.` });
     } catch (error) {
       const reason = error instanceof Error && error.message.includes("AccessControlUnauthorizedAccount")
         ? "This wallet is not authorised as an issuer on the registry contract."
@@ -315,8 +315,8 @@ export function IssuerDashboard() {
           <div className="mt-auto space-y-3">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
               <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Deployment network</span><span className="size-2 rounded-full bg-emerald-500" /></div>
-              <strong className="mt-2 block text-xs font-semibold text-slate-800">{BOT_TESTNET.name}</strong>
-              <span className="mt-1 block font-mono text-[11px] text-slate-500">Chain ID {BOT_TESTNET.chainId}</span>
+              <strong className="mt-2 block text-xs font-semibold text-slate-800">{BOT_MAINNET.name}</strong>
+              <span className="mt-1 block font-mono text-[11px] text-slate-500">Chain ID {BOT_MAINNET.chainId}</span>
             </div>
             <Link className="block px-2 text-xs font-medium text-slate-500 hover:text-slate-900" href="/">← Back to public site</Link>
           </div>
@@ -350,18 +350,18 @@ export function IssuerDashboard() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Issuer wallet</span><strong className="mt-2 block font-mono text-sm text-slate-950">{account ? shortValue(account) : "Not connected"}</strong><span className="mt-1 block text-[11px] text-slate-500">{account ? "Wallet connection active" : "Required for signed transactions"}</span></article>
-              <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Registry contract</span><a href={registryExplorerUrl()} target="_blank" rel="noreferrer" className="mt-2 block font-mono text-sm font-semibold text-blue-700 hover:underline">{shortValue(REGISTRY_ADDRESS)} ↗</a><span className="mt-1 block text-[11px] text-slate-500">{BOT_TESTNET.name}</span></article>
+              <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Registry contract</span><a href={registryExplorerUrl()} target="_blank" rel="noreferrer" className="mt-2 block font-mono text-sm font-semibold text-blue-700 hover:underline">{shortValue(REGISTRY_ADDRESS)} ↗</a><span className="mt-1 block text-[11px] text-slate-500">{BOT_MAINNET.name}</span></article>
               <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Issued by wallet</span><strong className="mt-1 block text-2xl font-semibold tracking-tight text-slate-950">{account ? activity.length : "—"}</strong><span className="mt-1 block text-[11px] text-slate-500">{loadingActivity ? "Loading confirmed activity…" : account ? "Restored when this wallet reconnects" : "Connect a wallet to load activity"}</span></article>
             </div>
 
             <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-200 px-5 py-4"><h3 className="text-sm font-semibold text-slate-900">Wallet activity</h3><p className="mt-1 text-xs text-slate-500">Confirmed issuance transactions associated with the connected wallet</p></div>
               {loadingActivity && activity.length === 0 ? (
-                <div className="px-5 py-14 text-center"><span className="text-sm font-semibold text-slate-700">Loading wallet activity…</span><p className="mt-1 text-xs text-slate-500">Reading confirmed issuance events from BOT Testnet.</p></div>
+                <div className="px-5 py-14 text-center"><span className="text-sm font-semibold text-slate-700">Loading wallet activity…</span><p className="mt-1 text-xs text-slate-500">Reading confirmed issuance events from BOT Chain Mainnet.</p></div>
               ) : activity.length === 0 ? (
                 <div className="px-5 py-14 text-center"><span className="mx-auto grid size-10 place-items-center rounded-lg bg-slate-100 text-slate-500">#</span><h4 className="mt-3 text-sm font-semibold text-slate-900">{account ? "No issuance activity yet" : "Connect a wallet to view activity"}</h4><p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-500">{account ? "Records will appear here after this wallet confirms an issuance transaction." : "EduTrust restores the issuance history associated with each connected wallet."}</p>{account && <button onClick={() => setView("issue")} className="mt-4 text-xs font-semibold text-blue-700 hover:underline">Issue the first credential</button>}</div>
               ) : (
-                <div className="overflow-x-auto"><table className="w-full min-w-[720px] border-collapse text-left"><thead><tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500"><th className="px-5 py-3">Credential</th><th className="px-5 py-3">Document fingerprint</th><th className="px-5 py-3">Confirmed</th><th className="px-5 py-3 text-right">Transaction</th></tr></thead><tbody className="divide-y divide-slate-100">{activity.map((item) => <tr className="text-xs text-slate-700" key={item.transactionHash}><td className="px-5 py-4 font-mono font-semibold text-slate-900" title={item.credentialId ?? item.credentialIdHash}>{item.credentialId ?? shortValue(item.credentialIdHash)}</td><td className="px-5 py-4 font-mono">{shortValue(item.documentHash)}</td><td className="px-5 py-4 text-slate-500">{item.confirmedAt}</td><td className="px-5 py-4 text-right"><a className="font-semibold text-blue-700 hover:underline" href={`${BOT_TESTNET.explorerUrl}/tx/${item.transactionHash}`} target="_blank" rel="noreferrer">View ↗</a></td></tr>)}</tbody></table></div>
+                <div className="overflow-x-auto"><table className="w-full min-w-[720px] border-collapse text-left"><thead><tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500"><th className="px-5 py-3">Credential</th><th className="px-5 py-3">Document fingerprint</th><th className="px-5 py-3">Confirmed</th><th className="px-5 py-3 text-right">Transaction</th></tr></thead><tbody className="divide-y divide-slate-100">{activity.map((item) => <tr className="text-xs text-slate-700" key={item.transactionHash}><td className="px-5 py-4 font-mono font-semibold text-slate-900" title={item.credentialId ?? item.credentialIdHash}>{item.credentialId ?? shortValue(item.credentialIdHash)}</td><td className="px-5 py-4 font-mono">{shortValue(item.documentHash)}</td><td className="px-5 py-4 text-slate-500">{item.confirmedAt}</td><td className="px-5 py-4 text-right"><a className="font-semibold text-blue-700 hover:underline" href={`${BOT_MAINNET.explorerUrl}/tx/${item.transactionHash}`} target="_blank" rel="noreferrer">View ↗</a></td></tr>)}</tbody></table></div>
               )}
             </section>
           </div>
@@ -381,11 +381,11 @@ export function IssuerDashboard() {
               </form>
 
               <aside className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between"><span className="grid size-10 place-items-center rounded-lg border border-slate-200 bg-white"><Image src="/favicon.svg" alt="" width={24} height={24} /></span><span className="rounded-md bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 ring-1 ring-inset ring-amber-200">Testnet</span></div>
+                <div className="flex items-center justify-between"><span className="grid size-10 place-items-center rounded-lg border border-slate-200 bg-white"><Image src="/favicon.svg" alt="" width={24} height={24} /></span><span className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-inset ring-emerald-200">Mainnet</span></div>
                 <h3 className="mt-5 text-sm font-semibold text-slate-900">Transaction preview</h3><p className="mt-1 text-xs leading-5 text-slate-500">Review the public destination before approving the wallet request.</p>
                 <dl className="mt-4 divide-y divide-slate-100 border-y border-slate-100">
-                  <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Network</dt><dd className="text-right text-[11px] font-semibold text-slate-800">{BOT_TESTNET.name}</dd></div>
-                  <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Chain ID</dt><dd className="font-mono text-[11px] font-semibold text-slate-800">{BOT_TESTNET.chainId}</dd></div>
+                  <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Network</dt><dd className="text-right text-[11px] font-semibold text-slate-800">{BOT_MAINNET.name}</dd></div>
+                  <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Chain ID</dt><dd className="font-mono text-[11px] font-semibold text-slate-800">{BOT_MAINNET.chainId}</dd></div>
                   <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Issuer</dt><dd className="max-w-[160px] text-right font-mono text-[11px] font-semibold text-slate-800">{account ? shortValue(account) : "Not connected"}</dd></div>
                   <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Contract</dt><dd className="max-w-[160px] text-right font-mono text-[11px] font-semibold text-slate-800">{shortValue(REGISTRY_ADDRESS)}</dd></div>
                   <div className="flex items-start justify-between gap-4 py-3"><dt className="text-[11px] text-slate-500">Document</dt><dd className="max-w-[160px] truncate text-right font-mono text-[11px] font-semibold text-slate-800" title={documentHash}>{documentHash ? shortValue(documentHash) : fileName || "Not selected"}</dd></div>

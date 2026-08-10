@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BOT_TESTNET, REGISTRY_ADDRESS, registryExplorerUrl } from "@/lib/registry";
+import { BOT_MAINNET, REGISTRY_ADDRESS, registryExplorerUrl } from "@/lib/registry";
 
 type RegistryHealth = {
   available: boolean;
@@ -39,8 +39,8 @@ export function RegistryOverview() {
     },
     {
       label: "Network",
-      value: BOT_TESTNET.name,
-      detail: `Chain ID ${health?.chainId ?? BOT_TESTNET.chainId}`,
+      value: BOT_MAINNET.name,
+      detail: `Chain ID ${health?.chainId ?? BOT_MAINNET.chainId}`,
       tone: "text-slate-950",
     },
     {
