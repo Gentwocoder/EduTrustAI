@@ -5,13 +5,14 @@ import { EthersAdapter } from "@reown/appkit-adapter-ethers";
 import {
   BOT_APPKIT_NETWORKS,
   REOWN_PROJECT_ID,
-  botChainMainnet,
+  walletConnectionNetwork,
 } from "@/lib/appkit";
 
 createAppKit({
   adapters: [new EthersAdapter()],
   networks: BOT_APPKIT_NETWORKS,
-  defaultNetwork: botChainMainnet,
+  defaultNetwork: walletConnectionNetwork,
+  allowUnsupportedChain: true,
   projectId: REOWN_PROJECT_ID,
   metadata: {
     name: "EduTrust AI",
