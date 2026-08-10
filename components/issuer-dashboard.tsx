@@ -22,6 +22,7 @@ import {
   type WalletRequestProvider,
 } from "@/lib/wallet-network";
 import { REGISTRY_ABI, REGISTRY_ADDRESS, registryExplorerUrl, type BotNetworkKey } from "@/lib/registry";
+import { friendlyTransactionError } from "@/lib/transaction-errors";
 import {
   AlertCircleIcon,
   ArrowLeftIcon,
@@ -59,6 +60,12 @@ type ChainActivity = {
   blockNumber: number;
   revokedAt: number;
   status: CredentialStatus;
+};
+
+type Notice = {
+  tone: "success" | "error";
+  title?: string;
+  text: string;
 };
 
 const inputClass = "mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
@@ -129,7 +136,7 @@ export function IssuerDashboard() {
   const [documentHash, setDocumentHash] = useState("");
   const [fileName, setFileName] = useState("");
   const [activity, setActivity] = useState<Activity[]>([]);
-  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [loadingActivity, setLoadingActivity] = useState(false);
@@ -329,10 +336,13 @@ export function IssuerDashboard() {
       setView("overview");
       setNotice({ tone: "success", text: `${credentialId} was confirmed on ${network.name}.` });
     } catch (error) {
-      const reason = error instanceof Error && error.message.includes("AccessControlUnauthorizedAccount")
-        ? "This wallet is not authorised as an issuer on the registry contract."
-        : error instanceof Error ? error.message : "The transaction could not be completed.";
-      setNotice({ tone: "error", text: reason });
+      console.error("Credential issuance failed", error);
+      const friendly = friendlyTransactionError(error, "issue", network.name);
+      setNotice({
+        tone: "error",
+        title: friendly.title,
+        text: friendly.message,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -372,13 +382,13 @@ export function IssuerDashboard() {
         text: `Credential revoked on ${network.name}. Transaction ${shortValue(receipt?.hash ?? transaction.hash)} confirmed.`,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "The revocation transaction could not be completed.";
-      const reason = message.includes("CredentialAlreadyRevoked")
-        ? "This credential has already been revoked."
-        : message.includes("AccessControlUnauthorizedAccount")
-          ? "Only the original issuer or registry administrator can revoke this credential."
-          : message;
-      setNotice({ tone: "error", text: reason });
+      console.error("Credential revocation failed", error);
+      const friendly = friendlyTransactionError(error, "revoke", network.name);
+      setNotice({
+        tone: "error",
+        title: friendly.title,
+        text: friendly.message,
+      });
     } finally {
       setRevoking(false);
     }
@@ -439,7 +449,16 @@ export function IssuerDashboard() {
           <NetworkSwitcher className="w-full justify-center" />
         </div>
 
-        {notice && <div className={`mx-4 mt-4 flex items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium sm:mx-6 lg:mx-8 ${notice.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`} role={notice.tone === "error" ? "alert" : "status"}><span className={`grid size-7 shrink-0 place-items-center rounded-full text-white ${notice.tone === "success" ? "bg-emerald-600" : "bg-red-600"}`}>{notice.tone === "success" ? <CheckCircleIcon className="size-4" /> : <AlertCircleIcon className="size-4" />}</span><span className="min-w-0 flex-1 break-words">{notice.text}</span><button className="rounded-md p-1.5 hover:bg-black/5" onClick={() => setNotice(null)} aria-label="Dismiss notification"><XIcon className="size-4" /></button></div>}
+        {notice && (
+          <div className={`mx-4 mt-4 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm sm:mx-6 lg:mx-8 ${notice.tone === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"}`} role={notice.tone === "error" ? "alert" : "status"}>
+            <span className={`mt-0.5 grid size-7 shrink-0 place-items-center rounded-full text-white ${notice.tone === "success" ? "bg-emerald-600" : "bg-red-600"}`}>{notice.tone === "success" ? <CheckCircleIcon className="size-4" /> : <AlertCircleIcon className="size-4" />}</span>
+            <div className="min-w-0 flex-1">
+              {notice.title && <strong className="block font-semibold">{notice.title}</strong>}
+              <span className={`block break-words leading-5 ${notice.title ? "mt-0.5 font-normal" : "font-medium"}`}>{notice.text}</span>
+            </div>
+            <button className="rounded-md p-1.5 hover:bg-black/5" onClick={() => setNotice(null)} aria-label="Dismiss notification"><XIcon className="size-4" /></button>
+          </div>
+        )}
 
         {view === "overview" ? (
           <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
