@@ -1,13 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { BrowserProvider, Contract, id as hashText, sha256 } from "ethers";
 import {
   useAppKit,
   useAppKitAccount,
-  useAppKitNetwork,
   useAppKitProvider,
   useDisconnect,
   type Provider,
@@ -15,7 +14,12 @@ import {
 import { Brand } from "@/components/brand";
 import { useBotNetwork } from "@/components/network-provider";
 import { NetworkSwitcher } from "@/components/network-switcher";
-import { BOT_APPKIT_NETWORK_BY_KEY } from "@/lib/appkit";
+import {
+  ensureBotChain,
+  walletConnectionErrorMessage,
+  walletNetworkErrorMessage,
+  type WalletRequestProvider,
+} from "@/lib/wallet-network";
 import { REGISTRY_ABI, REGISTRY_ADDRESS, registryExplorerUrl, type BotNetworkKey } from "@/lib/registry";
 import {
   AlertCircleIcon,
@@ -117,7 +121,6 @@ export function IssuerDashboard() {
   const { open } = useAppKit();
   const { address, isConnected } = useAppKitAccount({ namespace: "eip155" });
   const { walletProvider } = useAppKitProvider<Provider>("eip155");
-  const { switchNetwork } = useAppKitNetwork();
   const { disconnect } = useDisconnect();
   const account = address ?? "";
   const [view, setView] = useState<"overview" | "issue">("overview");
@@ -131,6 +134,7 @@ export function IssuerDashboard() {
   const [revokeTarget, setRevokeTarget] = useState<Activity | null>(null);
   const [revocationReason, setRevocationReason] = useState("");
   const [revoking, setRevoking] = useState(false);
+  const preparedNetworkRef = useRef("");
 
   useEffect(() => {
     let active = true;
@@ -172,13 +176,52 @@ export function IssuerDashboard() {
     };
   }, [account, networkKey]);
 
+  useEffect(() => {
+    if (!walletProvider || !isConnected || !account) {
+      preparedNetworkRef.current = "";
+      return;
+    }
+
+    const preparationKey = `${account.toLowerCase()}:${network.key}`;
+    if (preparedNetworkRef.current === preparationKey) return;
+    preparedNetworkRef.current = preparationKey;
+    let active = true;
+
+    void ensureBotChain(
+      walletProvider as WalletRequestProvider,
+      network,
+    )
+      .then(({ added, switched }) => {
+        if (active && (added || switched)) {
+          setNotice({
+            tone: "success",
+            text: `${network.name} is ready in your wallet.`,
+          });
+        }
+      })
+      .catch((error) => {
+        if (!active) return;
+        if (preparedNetworkRef.current === preparationKey) {
+          preparedNetworkRef.current = "";
+        }
+        setNotice({
+          tone: "error",
+          text: walletNetworkErrorMessage(error, network),
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [account, isConnected, network, walletProvider]);
+
   async function getSigner() {
     if (!walletProvider || !isConnected || !account) {
       await open({ view: "Connect", namespace: "eip155" });
       throw new Error("Connect an EVM wallet, then submit the transaction again.");
     }
 
-    await switchNetwork(BOT_APPKIT_NETWORK_BY_KEY[networkKey]);
+    await ensureBotChain(walletProvider as WalletRequestProvider, network);
     const provider = new BrowserProvider(walletProvider);
     const signer = await provider.getSigner();
     return signer;
@@ -194,7 +237,7 @@ export function IssuerDashboard() {
         await open({ view: "Connect", namespace: "eip155" });
       }
     } catch (error) {
-      setNotice({ tone: "error", text: error instanceof Error ? error.message : "The wallet selector could not be opened." });
+      setNotice({ tone: "error", text: walletConnectionErrorMessage(error) });
     } finally {
       setConnecting(false);
     }
@@ -203,6 +246,7 @@ export function IssuerDashboard() {
   async function disconnectWallet() {
     try {
       await disconnect({ namespace: "eip155" });
+      preparedNetworkRef.current = "";
       setActivity([]);
       setRevokeTarget(null);
       setRevocationReason("");
