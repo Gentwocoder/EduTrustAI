@@ -1,4 +1,4 @@
-export type TransactionAction = "issue" | "revoke";
+export type TransactionAction = "issue" | "revoke" | "grantIssuer" | "revokeIssuer";
 
 export type FriendlyTransactionError = {
   title: string;
@@ -60,15 +60,24 @@ export function friendlyTransactionError(
     "accesscontrolunauthorizedaccount",
     "0xe2517d3f",
   ])) {
-    return action === "issue"
-      ? {
-          title: "Wallet not authorised",
-          message: `This wallet cannot issue credentials on ${networkName}. Connect your institution's approved issuer wallet or ask the registry administrator to grant this wallet issuer access.`,
-        }
-      : {
-          title: "Revocation not permitted",
-          message: "Use the wallet that originally issued this credential, or ask the registry administrator to revoke it.",
-        };
+    if (action === "issue") {
+      return {
+        title: "Wallet not authorised",
+        message: `This wallet cannot issue credentials on ${networkName}. Connect your institution's approved issuer wallet or ask the registry administrator to grant this wallet issuer access.`,
+      };
+    }
+
+    if (action === "revoke") {
+      return {
+        title: "Revocation not permitted",
+        message: "Use the wallet that originally issued this credential, or ask the registry administrator to revoke it.",
+      };
+    }
+
+    return {
+      title: "Administrator access required",
+      message: `Only a registry administrator can manage issuer wallets on ${networkName}. Connect the administrator wallet and try again.`,
+    };
   }
 
   if (hasAny(details, [
