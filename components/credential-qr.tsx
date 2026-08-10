@@ -61,7 +61,7 @@ export function CredentialQr({
                 {copied ? <CheckCircleIcon className="size-4 text-emerald-600" /> : null}
                 {copied ? "Copied" : "Copy link"}
               </button>
-              <a href={shareUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
+              <a href={shareUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2.5 text-sm font-semibold !text-white hover:bg-blue-700 hover:!text-white">
                 Open <ExternalLinkIcon className="size-4" />
               </a>
             </div>
