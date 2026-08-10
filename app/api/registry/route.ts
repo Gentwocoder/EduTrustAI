@@ -3,6 +3,10 @@ import { BOT_NETWORKS, DEFAULT_NETWORK_KEY, isBotNetworkKey, REGISTRY_ABI, REGIS
 
 export const dynamic = "force-dynamic";
 
+function credentialStatus(status: number) {
+  return status === 1 ? "valid" : status === 2 ? "revoked" : "unknown";
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -29,7 +33,7 @@ export async function GET(request: Request) {
 
       const filter = registry.filters.CredentialIssued(null, null, issuer);
       const logs = await registry.queryFilter(filter, selectedNetwork.deploymentBlock, "latest");
-      const activity = logs
+      const issuedCredentials = logs
         .filter((log): log is EventLog => log instanceof EventLog)
         .map((log) => ({
           credentialIdHash: String(log.args.credentialIdHash),
@@ -40,6 +44,17 @@ export async function GET(request: Request) {
           blockNumber: log.blockNumber,
         }))
         .reverse();
+
+      const activity = await Promise.all(
+        issuedCredentials.map(async (item) => {
+          const record = await registry.getCredential(item.credentialIdHash);
+          return {
+            ...item,
+            revokedAt: Number(record.revokedAt),
+            status: credentialStatus(Number(record.status)),
+          };
+        }),
+      );
 
       return Response.json({ activity });
     }
@@ -71,7 +86,7 @@ export async function GET(request: Request) {
       issuer: record.issuer,
       issuedAt: Number(record.issuedAt),
       revokedAt: Number(record.revokedAt),
-      status: status === 1 ? "valid" : status === 2 ? "revoked" : "unknown",
+      status: credentialStatus(status),
     });
   } catch (error) {
     console.error("BOT registry request failed", error);

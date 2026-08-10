@@ -28,7 +28,11 @@ type Activity = {
   transactionHash: string;
   confirmedAt: string;
   blockNumber?: number;
+  revokedAt: number;
+  status: CredentialStatus;
 };
+
+type CredentialStatus = "valid" | "revoked" | "unknown";
 
 type ChainActivity = {
   credentialIdHash: string;
@@ -36,6 +40,8 @@ type ChainActivity = {
   transactionHash: string;
   issuedAt: number;
   blockNumber: number;
+  revokedAt: number;
+  status: CredentialStatus;
 };
 
 const inputClass = "mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
@@ -82,11 +88,20 @@ function mergeActivity(local: Activity[], chain: ChainActivity[]) {
       transactionHash: item.transactionHash,
       confirmedAt: new Date(item.issuedAt * 1000).toLocaleString(),
       blockNumber: item.blockNumber,
+      revokedAt: item.revokedAt,
+      status: item.status,
     } satisfies Activity;
   });
 
   const chainTransactions = new Set(chain.map((item) => item.transactionHash.toLowerCase()));
-  return [...merged, ...local.filter((item) => !chainTransactions.has(item.transactionHash.toLowerCase()))];
+  const localOnly = local
+    .filter((item) => !chainTransactions.has(item.transactionHash.toLowerCase()))
+    .map((item) => ({
+      ...item,
+      revokedAt: item.revokedAt ?? 0,
+      status: item.status ?? "unknown" as CredentialStatus,
+    }));
+  return [...merged, ...localOnly];
 }
 
 export function IssuerDashboard() {
@@ -100,6 +115,9 @@ export function IssuerDashboard() {
   const [submitting, setSubmitting] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [loadingActivity, setLoadingActivity] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState<Activity | null>(null);
+  const [revocationReason, setRevocationReason] = useState("");
+  const [revoking, setRevoking] = useState(false);
 
   useEffect(() => {
     const ethereum = window.ethereum;
@@ -233,6 +251,8 @@ export function IssuerDashboard() {
 
     setAccount("");
     setActivity([]);
+    setRevokeTarget(null);
+    setRevocationReason("");
     setView("overview");
     setNotice({ tone: "success", text: "Wallet disconnected from EduTrust." });
   }
@@ -273,6 +293,8 @@ export function IssuerDashboard() {
         transactionHash,
         confirmedAt: new Date().toLocaleString(),
         blockNumber: receipt?.blockNumber,
+        revokedAt: 0,
+        status: "valid",
       };
       setActivity((current) => {
         const next = [issuedActivity, ...current.filter((item) => item.transactionHash.toLowerCase() !== transactionHash.toLowerCase())];
@@ -291,6 +313,52 @@ export function IssuerDashboard() {
       setNotice({ tone: "error", text: reason });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function revokeCredential(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!revokeTarget) return;
+
+    const reason = revocationReason.trim();
+    if (!reason) {
+      setNotice({ tone: "error", text: "Enter an internal reason before revoking the credential." });
+      return;
+    }
+
+    setRevoking(true);
+    setNotice(null);
+    try {
+      const signer = await getSigner();
+      const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, signer);
+      const transaction = await registry.revokeCredential(revokeTarget.credentialIdHash, hashText(reason));
+      const receipt = await transaction.wait();
+      const issuerAddress = await signer.getAddress();
+      const revokedAt = Math.floor(Date.now() / 1000);
+
+      setActivity((current) => {
+        const next = current.map((item) => item.credentialIdHash.toLowerCase() === revokeTarget.credentialIdHash.toLowerCase()
+          ? { ...item, status: "revoked" as const, revokedAt }
+          : item);
+        storeActivity(issuerAddress, networkKey, next);
+        return next;
+      });
+      setRevokeTarget(null);
+      setRevocationReason("");
+      setNotice({
+        tone: "success",
+        text: `Credential revoked on ${network.name}. Transaction ${shortValue(receipt?.hash ?? transaction.hash)} confirmed.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The revocation transaction could not be completed.";
+      const reason = message.includes("CredentialAlreadyRevoked")
+        ? "This credential has already been revoked."
+        : message.includes("AccessControlUnauthorizedAccount")
+          ? "Only the original issuer or registry administrator can revoke this credential."
+          : message;
+      setNotice({ tone: "error", text: reason });
+    } finally {
+      setRevoking(false);
     }
   }
 
@@ -354,7 +422,7 @@ export function IssuerDashboard() {
         {view === "overview" ? (
           <div className="mx-auto max-w-[1400px] p-4 sm:p-6 lg:p-8">
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
-              <div><p className="text-xs font-semibold text-blue-700">BOT Chain registry</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Credential activity</h2><p className="mt-1 text-sm text-slate-600">Connect an authorised wallet to issue credentials and review its confirmed issuance history.</p></div>
+              <div><p className="text-xs font-semibold text-blue-700">BOT Chain registry</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Credential activity</h2><p className="mt-1 text-sm text-slate-600">Connect an authorised wallet to issue credentials and manage their current on-chain status.</p></div>
               <button className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" onClick={() => setView("issue")}>＋ <span className="ml-1">Issue credential</span></button>
             </div>
 
@@ -365,13 +433,13 @@ export function IssuerDashboard() {
             </div>
 
             <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 px-5 py-4"><h3 className="text-sm font-semibold text-slate-900">Wallet activity</h3><p className="mt-1 text-xs text-slate-500">Confirmed issuance transactions associated with the connected wallet</p></div>
+              <div className="border-b border-slate-200 px-5 py-4"><h3 className="text-sm font-semibold text-slate-900">Wallet activity</h3><p className="mt-1 text-xs text-slate-500">Issued credentials and their canonical BOT Chain status</p></div>
               {loadingActivity && activity.length === 0 ? (
                 <div className="px-5 py-14 text-center"><span className="text-sm font-semibold text-slate-700">Loading wallet activity…</span><p className="mt-1 text-xs text-slate-500">Reading confirmed issuance events from {network.name}.</p></div>
               ) : activity.length === 0 ? (
                 <div className="px-5 py-14 text-center"><span className="mx-auto grid size-10 place-items-center rounded-lg bg-slate-100 text-slate-500">#</span><h4 className="mt-3 text-sm font-semibold text-slate-900">{account ? "No issuance activity yet" : "Connect a wallet to view activity"}</h4><p className="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-500">{account ? "Records will appear here after this wallet confirms an issuance transaction." : "EduTrust restores the issuance history associated with each connected wallet."}</p>{account && <button onClick={() => setView("issue")} className="mt-4 text-xs font-semibold text-blue-700 hover:underline">Issue the first credential</button>}</div>
               ) : (
-                <div className="overflow-x-auto"><table className="w-full min-w-[720px] border-collapse text-left"><thead><tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500"><th className="px-5 py-3">Credential</th><th className="px-5 py-3">Document fingerprint</th><th className="px-5 py-3">Confirmed</th><th className="px-5 py-3 text-right">Transaction</th></tr></thead><tbody className="divide-y divide-slate-100">{activity.map((item) => <tr className="text-xs text-slate-700" key={item.transactionHash}><td className="px-5 py-4 font-mono font-semibold text-slate-900" title={item.credentialId ?? item.credentialIdHash}>{item.credentialId ?? shortValue(item.credentialIdHash)}</td><td className="px-5 py-4 font-mono">{shortValue(item.documentHash)}</td><td className="px-5 py-4 text-slate-500">{item.confirmedAt}</td><td className="px-5 py-4 text-right"><a className="font-semibold text-blue-700 hover:underline" href={`${network.explorerUrl}/tx/${item.transactionHash}`} target="_blank" rel="noreferrer">View ↗</a></td></tr>)}</tbody></table></div>
+                <div className="overflow-x-auto"><table className="w-full min-w-[900px] border-collapse text-left"><thead><tr className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wider text-slate-500"><th className="px-5 py-3">Credential</th><th className="px-5 py-3">Document fingerprint</th><th className="px-5 py-3">Confirmed</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{activity.map((item) => <tr className="text-xs text-slate-700" key={item.transactionHash}><td className="px-5 py-4 font-mono font-semibold text-slate-900" title={item.credentialId ?? item.credentialIdHash}>{item.credentialId ?? shortValue(item.credentialIdHash)}</td><td className="px-5 py-4 font-mono">{shortValue(item.documentHash)}</td><td className="px-5 py-4 text-slate-500">{item.confirmedAt}</td><td className="px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold capitalize ring-1 ring-inset ${item.status === "valid" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : item.status === "revoked" ? "bg-red-50 text-red-700 ring-red-200" : "bg-slate-100 text-slate-600 ring-slate-200"}`}>{item.status}</span>{item.status === "revoked" && item.revokedAt > 0 && <span className="mt-1 block text-[10px] text-slate-400">{new Date(item.revokedAt * 1000).toLocaleString()}</span>}</td><td className="px-5 py-4 text-right"><div className="flex items-center justify-end gap-3"><a className="font-semibold text-blue-700 hover:underline" href={`${network.explorerUrl}/tx/${item.transactionHash}`} target="_blank" rel="noreferrer">View ↗</a>{item.status === "valid" && <button className="rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-red-700 transition hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200" onClick={() => { setRevokeTarget(item); setRevocationReason(""); setNotice(null); }}>Revoke</button>}</div></td></tr>)}</tbody></table></div>
               )}
             </section>
           </div>
@@ -403,6 +471,31 @@ export function IssuerDashboard() {
                 <div className="mt-4 rounded-lg bg-slate-50 p-3"><strong className="text-[11px] font-semibold text-slate-800">Never written on-chain</strong><p className="mt-1 text-[11px] leading-5 text-slate-500">Student name · Grade · Certificate file · Contact details</p></div>
               </aside>
             </div>
+          </div>
+        )}
+
+        {revokeTarget && (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4" role="presentation">
+            <section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl sm:p-6" role="dialog" aria-modal="true" aria-labelledby="revoke-title">
+              <div className="flex items-start justify-between gap-4">
+                <div><p className="text-xs font-semibold text-red-700">Permanent status change</p><h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950" id="revoke-title">Revoke credential</h2></div>
+                <button className="rounded-md p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed" type="button" onClick={() => { setRevokeTarget(null); setRevocationReason(""); }} disabled={revoking} aria-label="Close revocation dialog">×</button>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-600">This marks the credential as revoked on {network.name}. The blockchain transaction cannot be reversed.</p>
+              <dl className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-start justify-between gap-4"><dt className="text-[11px] text-slate-500">Credential</dt><dd className="max-w-[240px] truncate text-right font-mono text-[11px] font-semibold text-slate-800" title={revokeTarget.credentialId ?? revokeTarget.credentialIdHash}>{revokeTarget.credentialId ?? shortValue(revokeTarget.credentialIdHash)}</dd></div>
+                <div className="mt-2 flex items-start justify-between gap-4"><dt className="text-[11px] text-slate-500">Issuer wallet</dt><dd className="font-mono text-[11px] font-semibold text-slate-800">{shortValue(account)}</dd></div>
+              </dl>
+              <form className="mt-5" onSubmit={revokeCredential}>
+                <label className={labelClass}>Revocation reason<textarea className={`${inputClass} min-h-24 resize-y`} required value={revocationReason} onChange={(event) => setRevocationReason(event.target.value)} placeholder="For example: issued in error or credential withdrawn" /></label>
+                <p className="mt-2 text-[11px] leading-5 text-slate-500">The reason stays in this browser. Only its one-way fingerprint is included in the public revocation event.</p>
+                {notice?.tone === "error" && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800" role="alert">{notice.text}</div>}
+                <div className="mt-5 flex flex-col-reverse gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
+                  <button className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400" type="button" onClick={() => { setRevokeTarget(null); setRevocationReason(""); }} disabled={revoking}>Cancel</button>
+                  <button className="rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2 disabled:cursor-wait disabled:bg-red-400" disabled={revoking}>{revoking ? "Waiting for confirmation…" : "Revoke credential"}</button>
+                </div>
+              </form>
+            </section>
           </div>
         )}
       </section>
