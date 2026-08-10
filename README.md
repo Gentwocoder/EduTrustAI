@@ -48,6 +48,18 @@ EduTrust addresses both sides of that problem:
 
 Public verification is read-only and does not require a wallet, account, or transaction.
 
+### Credential, document, and transaction hashes
+
+These three values serve different purposes:
+
+| Value | Algorithm/source | Purpose |
+| --- | --- | --- |
+| Credential ID hash | Keccak-256 via `ethers.id(credentialId)` | Registry key used by the contract, API lookup, and QR verification route |
+| Document hash | SHA-256 of the selected source file | Lets a verifier check whether a specific file matches the issued record |
+| Transaction hash | Returned by BOT Chain after a signed write | Opens the issuance or revocation transaction on BOTScan; it is not the credential lookup key |
+
+A QR route such as `/verify/testnet/0x...` therefore contains the credential ID hash, not the deployment or issuance transaction hash.
+
 ### 3. Revoke a credential
 
 1. The original issuer reconnects its wallet and opens a valid record from wallet activity.
@@ -70,11 +82,15 @@ The single-credential issuance form includes an optional local review. When the 
 4. The interface returns advisory findings and an OCR confidence score.
 5. An authorised human decides whether to issue the record.
 
-For performance, PDF review is limited to the first three pages and files up to 12 MB. No document or extracted text is sent to an EduTrust API, database, blockchain, or AI provider. If the browser cannot load the OCR engine, issuance still supports manual review and local SHA-256 hashing.
+For performance, PDF review is limited to the first three pages and files up to 12 MB. Large images are downscaled to a maximum dimension of 2,200 pixels and enhanced locally before recognition. English is the current OCR language.
+
+The OCR/PDF runtimes and compact English model are loaded on demand from pinned jsDelivr packages. The interface advances through visible loading stages, allows up to 45 seconds for OCR startup, and limits recognition to 90 seconds. Engine download requests time out after 15 seconds instead of leaving the review indefinitely at 0%.
+
+No document or extracted text is sent to an EduTrust API, database, blockchain, or AI provider. The review result is advisory and remains subject to human approval. If the browser cannot load the OCR engine—or the document is difficult to read—issuance still supports manual review and local SHA-256 hashing.
 
 ### 4. Share or bulk issue credentials
 
-Each activity row can generate a QR code containing a public route in the form `/verify/{network}/{credentialIdHash}`. The route selects the correct BOT Chain network and performs the registry lookup automatically. The QR contains no document, student name, grade, or contact information.
+Each activity row can generate a QR code containing a public route in the form `/verify/{network}/{credentialIdHash}`. The route selects the correct BOT Chain network and performs the registry lookup automatically. The QR contains no document, student name, grade, or contact information. QuickChart renders the QR image and receives only this already-public verification URL—never the source document, extracted text, or student data.
 
 For batches, upload a CSV with this header:
 
@@ -229,7 +245,7 @@ Email/social login, smart-account abstraction, swaps, on-ramp, send/receive cont
 | --- | --- |
 | Web application | Next.js 16, React 19, TypeScript |
 | UI | Tailwind CSS 4, custom responsive components |
-| Private document review | Tesseract.js 7 and PDF.js 6 loaded on demand in the browser |
+| Private document review | Pinned Tesseract.js 7, compact English OCR data, and PDF.js 6 loaded on demand in the browser |
 | Wallet connectivity | Reown AppKit, WalletConnect, ethers 6 |
 | Registry API | Next.js Route Handler, ethers JSON-RPC provider |
 | Smart contract | Solidity 0.8.28, OpenZeppelin AccessControl |
@@ -242,26 +258,31 @@ Email/social login, smart-account abstraction, swaps, on-ramp, send/receive cont
 
 ```text
 app/
-  api/registry/route.ts       BOT Chain read API
-  dashboard/page.tsx          institution portal route
-  page.tsx                    public verification product page
+  api/registry/route.ts            BOT Chain read API
+  dashboard/page.tsx               institution portal route
+  verify/[network]/[credential]/   QR/deep-link verification route
+  page.tsx                         public verification product page
 components/
-  issuer-dashboard.tsx        issue, activity, revoke, and wallet controls
-  verification-demo.tsx       public verification interface
-  network-provider.tsx        selected-network state
-  wallet-provider.tsx         Reown AppKit configuration
+  issuer-dashboard.tsx             issue, activity, revoke, and wallet controls
+  bulk-issuance.tsx                CSV validation and sequential batch issuance
+  credential-qr.tsx                privacy-bounded QR sharing dialog
+  local-document-review.tsx        browser-only PDF extraction and OCR review
+  verification-demo.tsx            public verification interface
+  network-provider.tsx             selected-network state
+  wallet-provider.tsx              Reown AppKit configuration
 contracts/
   contracts/EduTrustRegistry.sol
-  scripts/deploy.ts            guarded BOT Chain deployment
-  test/EduTrustRegistry.ts     contract behaviour tests
+  scripts/deploy.ts                 guarded BOT Chain deployment
+  test/EduTrustRegistry.ts          contract behaviour tests
 docs/
-  ARCHITECTURE.md              broader product architecture concept
-  DEMO-SCRIPT.md               hackathon demo outline
+  ARCHITECTURE.md                   broader product architecture concept
+  DEMO-SCRIPT.md                    hackathon demo outline
 lib/
-  appkit.ts                    EVM chain and wallet definitions
-  registry.ts                  registry ABI, address, and network metadata
+  appkit.ts                         EVM chain and wallet definitions
+  institutions.ts                   reviewed issuer-profile resolution
+  registry.ts                       registry ABI, address, and network metadata
 tests/
-  rendered-html.test.mjs       rendered worker smoke test
+  rendered-html.test.mjs            rendered worker smoke test
 ```
 
 The `db/`, `drizzle/`, `examples/`, and worker-related files are scaffolding for the alternate Sites/Cloudflare runtime. They are not required by the live Vercel MVP and do not currently store credential data.
@@ -451,7 +472,7 @@ Changes pushed to the connected production branch can be deployed automatically 
 
 - Never commit a private key, seed phrase, keystore password, or funded-wallet secret.
 - Private OCR is advisory. It does not prove authenticity, replace registrar approval, or change the canonical on-chain verification result.
-- OCR and PDF engine code/language data are downloaded on demand from pinned public CDN versions; the document itself is processed locally and is not transmitted.
+- OCR and PDF engine code/language data are downloaded on demand from pinned jsDelivr versions; QuickChart receives only the public verification URL when rendering a QR. Documents and extracted text are never transmitted.
 - Confirm the selected BOT Chain network and registry address in the transaction preview before signing.
 - Only wallets granted `ISSUER_ROLE` can issue credentials.
 - Revocation requires `ISSUER_ROLE`; the caller must also be the original issuer or hold `DEFAULT_ADMIN_ROLE`.
@@ -481,7 +502,7 @@ Future production extensions:
 - encrypted institutional database and private object storage
 - student/graduate delivery portal
 - generated credential PDFs and selective disclosure
-- multilingual OCR packs and advanced local document-difference explanations
+- multilingual OCR packs, offline-bundled OCR assets, and advanced local document-difference explanations
 - registrar approval workflows and school-system integrations
 - decentralised or redundant RPC/indexing infrastructure
 - independent smart-contract audit, operational monitoring, and incident procedures
