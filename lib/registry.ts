@@ -48,7 +48,7 @@ export const DEFAULT_ADMIN_ROLE =
   "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 export const ISSUER_ROLE =
-  "0x67114e74f6ea3bd819998f78687bfcb11b140da08e9b7d222fa9c1f1ba1f2aa122";
+  "0x114e74f6ea3bd819998f78687bfcb11b140da08e9b7d222fa9c1f1ba1f2aa122";
 
 export const REGISTRY_ABI = [
   "error AccessControlUnauthorizedAccount(address account, bytes32 neededRole)",
