@@ -21,9 +21,11 @@ export default function Home() {
             <a className="transition hover:text-slate-950" href="#verification">Verify</a>
             <a className="transition hover:text-slate-950" href="#how-it-works">How it works</a>
             <a className="transition hover:text-slate-950" href="#institutions">Institutions</a>
+            <Link className="transition hover:text-slate-950" href="/student">Student wallet</Link>
           </div>
           <div className="flex items-center gap-2">
             <NetworkSwitcher compact className="hidden lg:inline-flex" />
+            <Link href="/student" className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 sm:inline-flex">Student wallet</Link>
             <Link className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" href="/dashboard">
               Institution portal <ArrowRightIcon className="ml-2 size-4" />
             </Link>
