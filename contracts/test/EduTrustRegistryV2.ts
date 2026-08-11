@@ -35,7 +35,7 @@ describe("EduTrustRegistryV2", function () {
     const { ethers, registry, institution } = await deployFixture();
     const original = ethers.id("EDU-2026-ORIGINAL");
     const replacement = ethers.id("EDU-2027-RENEWED");
-    await registry.connect(institution).issueCredential(original, ethers.id("document-v1"));
+    await registry.connect(institution)["issueCredential(bytes32,bytes32)"](original, ethers.id("document-v1"));
 
     await expect(
       registry.connect(institution).renewCredential(
@@ -58,7 +58,7 @@ describe("EduTrustRegistryV2", function () {
     const { ethers, registry, institution } = await deployFixture();
     const original = ethers.id("EDU-2026-TYPO");
     const replacement = ethers.id("EDU-2026-CORRECTED");
-    await registry.connect(institution).issueCredential(original, ethers.id("wrong-document"));
+    await registry.connect(institution)["issueCredential(bytes32,bytes32)"](original, ethers.id("wrong-document"));
 
     await expect(
       registry.connect(institution).correctCredential(
@@ -73,7 +73,7 @@ describe("EduTrustRegistryV2", function () {
   it("requires the issuer or administrator to replace a credential", async function () {
     const { ethers, registry, institution, outsider } = await deployFixture();
     const original = ethers.id("EDU-2026-CONTROLLED");
-    await registry.connect(institution).issueCredential(original, ethers.id("document"));
+    await registry.connect(institution)["issueCredential(bytes32,bytes32)"](original, ethers.id("document"));
 
     await expect(
       registry.connect(outsider).renewCredential(
