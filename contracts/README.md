@@ -13,10 +13,21 @@ V1 is immutable and non-upgradeable. V2 must be deployed as a separate contract.
 
 ## BOT Chain networks
 
-| Network | Chain ID | RPC | Explorer | V2 contract |
-| --- | ---: | --- | --- | --- |
-| Testnet | 968 | `https://rpc.bohr.life` | `https://scan.bohr.life` | [`0xc3B4...ebf3`](https://scan.bohr.life/address/0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3#code) |
-| Mainnet | 677 | `https://rpc.botchain.ai` | `https://scan.botchain.ai` | [`0x3032...D48C`](https://scan.botchain.ai/address/0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C#code) |
+| Network | Chain ID | RPC | Explorer |
+| --- | ---: | --- | --- |
+| Testnet | 968 | `https://rpc.bohr.life` | `https://scan.bohr.life` |
+| Mainnet | 677 | `https://rpc.botchain.ai` | `https://scan.botchain.ai` |
+
+### Contract addresses
+
+| Network | Version | Status | Contract address |
+| --- | --- | --- | --- |
+| Mainnet | V1 | Legacy/audit history | [`0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f`](https://scan.botchain.ai/address/0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f) |
+| Mainnet | V2 | Active and verified | [`0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C`](https://scan.botchain.ai/address/0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C#code) |
+| Testnet | V1 | Legacy/audit history | [`0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f`](https://scan.bohr.life/address/0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f) |
+| Testnet | V2 | Active and verified | [`0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3`](https://scan.bohr.life/address/0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3#code) |
+
+V1 has the same address on both networks because both deployments used the same deployer and nonce.
 
 ## Local validation
 
