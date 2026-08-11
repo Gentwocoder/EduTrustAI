@@ -200,10 +200,19 @@ The blockchain is the source of truth for credential existence, issuer, fingerpr
 
 EduTrust uses BOT Chain as the public integrity and lifecycle layer. It does not mint a token or NFT; native BOT is used only to pay transaction gas.
 
-| Network | Chain ID | Native token | RPC | Explorer | Active V2 registry |
-| --- | ---: | --- | --- | --- | --- |
-| Mainnet | `677` | `BOT` | `https://rpc.botchain.ai` | [BOTScan Mainnet](https://scan.botchain.ai) | [`0x3032...D48C`](https://scan.botchain.ai/address/0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C) |
-| Testnet | `968` | `BOT` | `https://rpc.bohr.life` | [BOTScan Testnet](https://scan.bohr.life) | [`0xc3B4...ebf3`](https://scan.bohr.life/address/0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3) |
+| Network | Chain ID | Native token | RPC | Explorer |
+| --- | ---: | --- | --- | --- |
+| Mainnet | `677` | `BOT` | `https://rpc.botchain.ai` | [BOTScan Mainnet](https://scan.botchain.ai) |
+| Testnet | `968` | `BOT` | `https://rpc.bohr.life` | [BOTScan Testnet](https://scan.bohr.life) |
+
+### Contract addresses
+
+| Network | Version | Application status | Contract address |
+| --- | --- | --- | --- |
+| Mainnet | V1 | Legacy/audit history | [`0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f`](https://scan.botchain.ai/address/0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f) |
+| Mainnet | V2 | Active | [`0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C`](https://scan.botchain.ai/address/0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C#code) |
+| Testnet | V1 | Legacy/audit history | [`0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f`](https://scan.bohr.life/address/0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f) |
+| Testnet | V2 | Active | [`0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3`](https://scan.bohr.life/address/0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3#code) |
 
 | V2 deployment | Transaction |
 | --- | --- |
@@ -212,7 +221,7 @@ EduTrust uses BOT Chain as the public integrity and lifecycle layer. It does not
 
 The frontend defaults to Mainnet. The selected network is kept in browser storage, and the wallet is prompted to switch to the corresponding EVM chain before a write transaction.
 
-The immutable V1 registry remains available at [`0x49F1...505f`](https://scan.botchain.ai/address/0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f). V1 records are not migrated automatically; the active application registries are the separately deployed V2 contracts above.
+The immutable V1 registry remains available on both networks for audit history. V1 records are not migrated automatically; the active application registries are the separately deployed V2 contracts above. V1 has the same address on Mainnet and Testnet because both deployments used the same deployer and nonce.
 
 ## On-chain data model
 
