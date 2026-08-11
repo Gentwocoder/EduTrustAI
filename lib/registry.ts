@@ -20,7 +20,7 @@ export const BOT_NETWORKS = {
     name: "BOT Chain Mainnet",
     rpcUrl: "https://rpc.botchain.ai",
     explorerUrl: "https://scan.botchain.ai",
-    deploymentBlock: 19177944,
+    deploymentBlock: 19280977,
   },
   testnet: {
     key: "testnet",
@@ -30,7 +30,7 @@ export const BOT_NETWORKS = {
     name: "BOT Chain Testnet",
     rpcUrl: "https://rpc.bohr.life",
     explorerUrl: "https://scan.bohr.life",
-    deploymentBlock: 0,
+    deploymentBlock: 19475372,
   },
 } as const satisfies Record<BotNetworkKey, BotNetwork>;
 
@@ -40,18 +40,22 @@ export function isBotNetworkKey(value: string | null): value is BotNetworkKey {
   return value === "mainnet" || value === "testnet";
 }
 
-const LEGACY_REGISTRY_ADDRESS = "0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f";
+const DEFAULT_REGISTRY_ADDRESSES = {
+  mainnet: "0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C",
+  testnet: "0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3",
+} as const satisfies Record<BotNetworkKey, string>;
+
 const sharedRegistryOverride = process.env.NEXT_PUBLIC_EDUTRUST_REGISTRY_ADDRESS;
 
 export const REGISTRY_ADDRESSES = {
   mainnet:
     process.env.NEXT_PUBLIC_EDUTRUST_MAINNET_REGISTRY_ADDRESS ??
     sharedRegistryOverride ??
-    LEGACY_REGISTRY_ADDRESS,
+    DEFAULT_REGISTRY_ADDRESSES.mainnet,
   testnet:
     process.env.NEXT_PUBLIC_EDUTRUST_TESTNET_REGISTRY_ADDRESS ??
     sharedRegistryOverride ??
-    LEGACY_REGISTRY_ADDRESS,
+    DEFAULT_REGISTRY_ADDRESSES.testnet,
 } as const satisfies Record<BotNetworkKey, string>;
 
 // Retained for compatibility with code that only needs the default Mainnet address.
