@@ -27,7 +27,7 @@ import {
 import {
   ISSUER_ROLE,
   REGISTRY_ABI,
-  REGISTRY_ADDRESS,
+  registryAddressForNetwork,
   registryExplorerUrl,
   type BotNetworkKey,
 } from "@/lib/registry";
@@ -43,6 +43,7 @@ import {
   HomeIcon,
   LogOutIcon,
   PlusIcon,
+  RefreshIcon,
   ShieldCheckIcon,
   UserPlusIcon,
   UsersIcon,
@@ -58,10 +59,13 @@ type Activity = {
   confirmedAt: string;
   blockNumber?: number;
   revokedAt: number;
+  expiresAt?: number;
+  supersedes?: string;
+  replacement?: string;
   status: CredentialStatus;
 };
 
-type CredentialStatus = "valid" | "revoked" | "unknown";
+type CredentialStatus = "valid" | "revoked" | "expired" | "replaced" | "unknown";
 
 type ChainActivity = {
   credentialIdHash: string;
@@ -70,6 +74,9 @@ type ChainActivity = {
   issuedAt: number;
   blockNumber: number;
   revokedAt: number;
+  expiresAt?: number;
+  supersedes?: string;
+  replacement?: string;
   status: CredentialStatus;
 };
 
@@ -107,6 +114,7 @@ type RoleData = {
     profile?: InstitutionProfile | null;
   };
   issuers: IssuerRecord[];
+  registryVersion: number;
 };
 
 const inputClass = "mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
@@ -166,6 +174,9 @@ function mergeActivity(local: Activity[], chain: ChainActivity[]) {
       confirmedAt: new Date(item.issuedAt * 1000).toLocaleString(),
       blockNumber: item.blockNumber,
       revokedAt: item.revokedAt,
+      expiresAt: item.expiresAt,
+      supersedes: item.supersedes,
+      replacement: item.replacement,
       status: item.status,
     } satisfies Activity;
   });
@@ -183,6 +194,7 @@ function mergeActivity(local: Activity[], chain: ChainActivity[]) {
 
 export function IssuerDashboard() {
   const { network, networkKey } = useBotNetwork();
+  const registryAddress = registryAddressForNetwork(networkKey);
   const { open, close } = useAppKit();
   const { open: walletModalOpen, loading: walletModalLoading } = useAppKitState();
   const { address, isConnected } = useAppKitAccount({ namespace: "eip155" });
@@ -203,6 +215,7 @@ export function IssuerDashboard() {
   const [revocationReason, setRevocationReason] = useState("");
   const [revoking, setRevoking] = useState(false);
   const [roleAccess, setRoleAccess] = useState({ isAdmin: false, isIssuer: false });
+  const [registryVersion, setRegistryVersion] = useState(1);
   const [issuers, setIssuers] = useState<IssuerRecord[]>([]);
   const [institutionProfile, setInstitutionProfile] = useState<InstitutionProfile | null>(null);
   const [activityRefresh, setActivityRefresh] = useState(0);
@@ -260,6 +273,7 @@ export function IssuerDashboard() {
 
       if (!account) {
         setRoleAccess({ isAdmin: false, isIssuer: false });
+        setRegistryVersion(1);
         setInstitutionProfile(null);
         setIssuers([]);
         setLoadingRoles(false);
@@ -275,6 +289,7 @@ export function IssuerDashboard() {
           isAdmin: data.account.isAdmin,
           isIssuer: data.account.isIssuer,
         });
+        setRegistryVersion(data.registryVersion ?? 1);
         setInstitutionProfile(data.account.profile ?? null);
         setIssuers(data.issuers);
         if (!data.account.isAdmin) {
@@ -283,6 +298,7 @@ export function IssuerDashboard() {
       } catch {
         if (!active) return;
         setRoleAccess({ isAdmin: false, isIssuer: false });
+        setRegistryVersion(1);
         setInstitutionProfile(null);
         setIssuers([]);
       } finally {
@@ -405,6 +421,7 @@ export function IssuerDashboard() {
       isAdmin: data.account.isAdmin,
       isIssuer: data.account.isIssuer,
     });
+    setRegistryVersion(data.registryVersion ?? 1);
     setInstitutionProfile(data.account.profile ?? null);
     setIssuers(data.issuers);
   }
@@ -437,7 +454,7 @@ export function IssuerDashboard() {
     setNotice(null);
     try {
       const signer = await getSigner();
-      const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, signer);
+      const registry = new Contract(registryAddress, REGISTRY_ABI, signer);
       const transaction = await registry.grantRole(ISSUER_ROLE, issuerAddress);
       await transaction.wait();
       await refreshRoleData();
@@ -467,7 +484,7 @@ export function IssuerDashboard() {
     setNotice(null);
     try {
       const signer = await getSigner();
-      const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, signer);
+      const registry = new Contract(registryAddress, REGISTRY_ABI, signer);
       const transaction = await registry.revokeRole(ISSUER_ROLE, issuerToRemove.account);
       await transaction.wait();
       const removedAddress = issuerToRemove.account;
@@ -506,9 +523,26 @@ export function IssuerDashboard() {
     const form = event.currentTarget;
     const data = new FormData(form);
     const credentialId = String(data.get("credentialId") ?? "").trim();
+    const expiryValue = String(data.get("expiresAt") ?? "").trim();
+    const expiresAt = expiryValue
+      ? Math.floor(new Date(`${expiryValue}T23:59:59`).getTime() / 1000)
+      : 0;
 
     if (!documentHash) {
       setNotice({ tone: "error", text: "Choose the source document before issuing the credential." });
+      return;
+    }
+
+    if (expiresAt !== 0 && expiresAt <= Math.floor(Date.now() / 1000)) {
+      setNotice({ tone: "error", text: "Choose a future expiry date or leave the expiry blank." });
+      return;
+    }
+    if (expiresAt !== 0 && registryVersion < 2) {
+      setNotice({
+        tone: "error",
+        title: "Registry V2 required",
+        text: "The selected registry does not support credential expiry yet. Use the lifecycle deployment or leave expiry blank.",
+      });
       return;
     }
 
@@ -516,19 +550,30 @@ export function IssuerDashboard() {
     setNotice(null);
     try {
       const signer = await getSigner();
-      const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, signer);
-      const transaction = await registry.issueCredential(hashText(credentialId), documentHash);
+      const registry = new Contract(registryAddress, REGISTRY_ABI, signer);
+      const credentialIdHash = hashText(credentialId);
+      const transaction = expiresAt > 0
+        ? await registry["issueCredential(bytes32,bytes32,uint64)"](
+            credentialIdHash,
+            documentHash,
+            expiresAt,
+          )
+        : await registry["issueCredential(bytes32,bytes32)"](
+            credentialIdHash,
+            documentHash,
+          );
       const receipt = await transaction.wait();
       const transactionHash = receipt?.hash ?? transaction.hash;
       const issuerAddress = await signer.getAddress();
       const issuedActivity: Activity = {
         credentialId,
-        credentialIdHash: hashText(credentialId),
+        credentialIdHash,
         documentHash,
         transactionHash,
         confirmedAt: new Date().toLocaleString(),
         blockNumber: receipt?.blockNumber,
         revokedAt: 0,
+        expiresAt,
         status: "valid",
       };
       setActivity((current) => {
@@ -570,7 +615,7 @@ export function IssuerDashboard() {
     setNotice(null);
     try {
       const signer = await getSigner();
-      const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, signer);
+      const registry = new Contract(registryAddress, REGISTRY_ABI, signer);
       const transaction = await registry.revokeCredential(revokeTarget.credentialIdHash, hashText(reason));
       const receipt = await transaction.wait();
       const issuerAddress = await signer.getAddress();
@@ -623,6 +668,7 @@ export function IssuerDashboard() {
             <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "issue" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("issue")}><PlusIcon className="size-5 shrink-0" />Issue credential</button>
             <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "bulk" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("bulk")}><FileTextIcon className="size-5 shrink-0" />Bulk issuance</button>
             {roleAccess.isAdmin && <button className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${view === "issuers" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} onClick={() => setView("issuers")}><UsersIcon className="size-5 shrink-0" />Issuer management</button>}
+            <Link className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href="/dashboard/lifecycle"><RefreshIcon className="size-5 shrink-0" />Lifecycle & recovery <span className="ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold">V2</span></Link>
             <a className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900" href={registryExplorerUrl(network)} target="_blank" rel="noreferrer"><ExternalLinkIcon className="size-5 shrink-0" />BOT explorer</a>
           </nav>
 
@@ -676,6 +722,7 @@ export function IssuerDashboard() {
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
               <div><p className="text-xs font-semibold text-blue-700">BOT Chain registry</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">Credential activity</h2><p className="mt-1 text-sm text-slate-600">Connect an authorised wallet to issue credentials and manage their current on-chain status.</p></div>
               <div className="flex flex-wrap gap-2">
+                <Link href="/dashboard/lifecycle" className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200"><RefreshIcon className="mr-2 size-4" />Lifecycle</Link>
                 <button className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200" onClick={() => setView("bulk")}><FileTextIcon className="mr-2 size-4" />Bulk issue</button>
                 {roleAccess.isAdmin && <button className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200" onClick={() => setView("issuers")}><UsersIcon className="mr-2 size-4" />Manage issuers</button>}
                 <button className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2" onClick={() => setView("issue")}><PlusIcon className="mr-2 size-4" /> <span>Issue credential</span></button>
@@ -684,7 +731,7 @@ export function IssuerDashboard() {
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Institution profile</span><strong className="mt-2 block text-sm text-slate-950">{institutionProfile?.name ?? (account ? "Profile pending" : "Not connected")}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{institutionProfile?.verified ? `Verified · ${institutionProfile.category}` : account ? "Authorised wallet without a published profile" : "Connect a wallet to resolve its profile"}</span></article>
-              <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Registry contract</span><a href={registryExplorerUrl(network)} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 font-mono text-sm font-semibold text-blue-700 hover:text-blue-800"><span>{shortValue(REGISTRY_ADDRESS)}</span><ExternalLinkIcon className="size-4" /></a><span className="mt-1 block text-xs leading-5 text-slate-500">{network.name}</span></article>
+              <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Registry contract</span><a href={registryExplorerUrl(network)} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 font-mono text-sm font-semibold text-blue-700 hover:text-blue-800"><span>{shortValue(registryAddress)}</span><ExternalLinkIcon className="size-4" /></a><span className="mt-1 block text-xs leading-5 text-slate-500">{network.name}</span></article>
               <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><span className="text-xs font-medium text-slate-500">Issued by wallet</span><strong className="mt-1 block text-2xl font-semibold tracking-tight text-slate-950">{account ? activity.length : "—"}</strong><span className="mt-1 block text-xs leading-5 text-slate-500">{loadingActivity ? "Loading confirmed activity…" : account ? "Restored when this wallet reconnects" : "Connect a wallet to load activity"}</span></article>
             </div>
 
@@ -695,7 +742,7 @@ export function IssuerDashboard() {
               ) : activity.length === 0 ? (
                 <div className="px-5 py-14 text-center"><span className="mx-auto grid size-11 place-items-center rounded-lg bg-slate-100 text-slate-500"><FileTextIcon className="size-5" /></span><h4 className="mt-3 text-base font-semibold text-slate-900">{account ? "No issuance activity yet" : "Connect a wallet to view activity"}</h4><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">{account ? "Records will appear here after this wallet confirms an issuance transaction." : "EduTrust restores the issuance history associated with each connected wallet."}</p>{account && <button onClick={() => setView("issue")} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">Issue the first credential</button>}</div>
               ) : (
-                <div className="overflow-x-auto"><table className="w-full min-w-[1000px] border-collapse text-left"><thead><tr className="bg-slate-50 text-sm font-semibold uppercase tracking-wider text-slate-600"><th className="px-5 py-3">Credential</th><th className="px-5 py-3">Document fingerprint</th><th className="px-5 py-3">Confirmed</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{activity.map((item) => <tr className="text-sm text-slate-700" key={item.transactionHash}><td className="px-5 py-4 font-mono font-semibold text-slate-900" title={item.credentialId ?? item.credentialIdHash}>{item.credentialId ?? shortValue(item.credentialIdHash)}</td><td className="px-5 py-4 font-mono">{shortValue(item.documentHash)}</td><td className="px-5 py-4 text-slate-500">{item.confirmedAt}</td><td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm font-semibold capitalize ring-1 ring-inset ${item.status === "valid" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : item.status === "revoked" ? "bg-red-50 text-red-700 ring-red-200" : "bg-slate-100 text-slate-600 ring-slate-200"}`}>{item.status === "valid" ? <CheckCircleIcon className="size-4" /> : item.status === "revoked" ? <BanIcon className="size-4" /> : <CircleHelpIcon className="size-4" />}{item.status}</span>{item.status === "revoked" && item.revokedAt > 0 && <span className="mt-1 block text-xs text-slate-400">{new Date(item.revokedAt * 1000).toLocaleString()}</span>}</td><td className="px-5 py-4 text-right"><div className="flex items-center justify-end gap-3"><CredentialQr credentialIdHash={item.credentialIdHash} networkKey={networkKey} /><a className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200" href={`${network.explorerUrl}/tx/${item.transactionHash}`} target="_blank" rel="noreferrer">View <ExternalLinkIcon className="size-4" /></a>{item.status === "valid" && <button className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200" onClick={() => { setRevokeTarget(item); setRevocationReason(""); setNotice(null); }}><BanIcon className="size-4" />Revoke</button>}</div></td></tr>)}</tbody></table></div>
+                <div className="overflow-x-auto"><table className="w-full min-w-[1000px] border-collapse text-left"><thead><tr className="bg-slate-50 text-sm font-semibold uppercase tracking-wider text-slate-600"><th className="px-5 py-3">Credential</th><th className="px-5 py-3">Document fingerprint</th><th className="px-5 py-3">Confirmed</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{activity.map((item) => <tr className="text-sm text-slate-700" key={item.transactionHash}><td className="px-5 py-4 font-mono font-semibold text-slate-900" title={item.credentialId ?? item.credentialIdHash}>{item.credentialId ?? shortValue(item.credentialIdHash)}</td><td className="px-5 py-4 font-mono">{shortValue(item.documentHash)}</td><td className="px-5 py-4 text-slate-500">{item.confirmedAt}</td><td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm font-semibold capitalize ring-1 ring-inset ${item.status === "valid" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : item.status === "revoked" ? "bg-red-50 text-red-700 ring-red-200" : item.status === "expired" || item.status === "replaced" ? "bg-amber-50 text-amber-800 ring-amber-200" : "bg-slate-100 text-slate-600 ring-slate-200"}`}>{item.status === "valid" ? <CheckCircleIcon className="size-4" /> : item.status === "revoked" ? <BanIcon className="size-4" /> : <CircleHelpIcon className="size-4" />}{item.status}</span>{item.status === "revoked" && item.revokedAt > 0 && <span className="mt-1 block text-xs text-slate-400">{new Date(item.revokedAt * 1000).toLocaleString()}</span>}{item.expiresAt && item.expiresAt > 0 && <span className="mt-1 block text-xs text-slate-400">Expires {new Date(item.expiresAt * 1000).toLocaleDateString()}</span>}</td><td className="px-5 py-4 text-right"><div className="flex items-center justify-end gap-3"><CredentialQr credentialIdHash={item.credentialIdHash} networkKey={networkKey} /><a className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200" href={`${network.explorerUrl}/tx/${item.transactionHash}`} target="_blank" rel="noreferrer">View <ExternalLinkIcon className="size-4" /></a>{item.status === "valid" && <button className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-200" onClick={() => { setRevokeTarget(item); setRevocationReason(""); setNotice(null); }}><BanIcon className="size-4" />Revoke</button>}</div></td></tr>)}</tbody></table></div>
               )}
             </section>
           </div>
@@ -709,6 +756,7 @@ export function IssuerDashboard() {
                   <label className={labelClass}>Credential ID<input className={`${inputClass} font-mono`} name="credentialId" required placeholder="Enter the institution-issued identifier" autoComplete="off" value={credentialId} onChange={(event) => setCredentialId(event.target.value)} /></label>
                   <label className={labelClass}>Source document<span className="mt-1 block text-xs font-normal leading-5 text-slate-500">The file stays on this device. EduTrust calculates its SHA-256 fingerprint locally.</span><input className={`${inputClass} file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-slate-700`} name="document" type="file" accept="application/pdf,image/*" required onChange={(event) => selectDocument(event.target.files?.[0])} /></label>
                   <label className={labelClass}>Document fingerprint<input className={`${inputClass} font-mono text-slate-500`} readOnly value={documentHash} placeholder="Calculated after a document is selected" /></label>
+                  <label className={labelClass}>Expiry <span className="font-normal text-slate-400">(optional, Registry V2)</span><input className={inputClass} type="date" name="expiresAt" /><span className="mt-1 block text-xs font-normal leading-5 text-slate-500">Leave blank for a credential with no on-chain expiry.</span></label>
                   <LocalDocumentReview document={selectedDocument} credentialId={credentialId} />
                 </div>
                 <div className="mt-5 flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm leading-6 text-emerald-800"><ShieldCheckIcon className="mt-0.5 size-5 shrink-0" /><p><strong>Privacy-preserving issuance.</strong> Fingerprinting and optional OCR review run locally. The selected document and extracted text are never uploaded by this interface.</p></div>
@@ -722,7 +770,7 @@ export function IssuerDashboard() {
                   <div className="flex items-start justify-between gap-4 py-3"><dt className="text-xs text-slate-500">Network</dt><dd className="text-right text-xs font-semibold text-slate-800">{network.name}</dd></div>
                   <div className="flex items-start justify-between gap-4 py-3"><dt className="text-xs text-slate-500">Chain ID</dt><dd className="font-mono text-xs font-semibold text-slate-800">{network.chainId}</dd></div>
                   <div className="flex items-start justify-between gap-4 py-3"><dt className="text-xs text-slate-500">Issuer</dt><dd className="max-w-[160px] text-right font-mono text-xs font-semibold text-slate-800">{account ? shortValue(account) : "Not connected"}</dd></div>
-                  <div className="flex items-start justify-between gap-4 py-3"><dt className="text-xs text-slate-500">Contract</dt><dd className="max-w-[160px] text-right font-mono text-xs font-semibold text-slate-800">{shortValue(REGISTRY_ADDRESS)}</dd></div>
+                  <div className="flex items-start justify-between gap-4 py-3"><dt className="text-xs text-slate-500">Contract</dt><dd className="max-w-[160px] text-right font-mono text-xs font-semibold text-slate-800">{shortValue(registryAddress)}</dd></div>
                   <div className="flex items-start justify-between gap-4 py-3"><dt className="text-xs text-slate-500">Document</dt><dd className="max-w-[160px] truncate text-right font-mono text-xs font-semibold text-slate-800" title={documentHash}>{documentHash ? shortValue(documentHash) : fileName || "Not selected"}</dd></div>
                 </dl>
                 <div className="mt-4 rounded-lg bg-slate-50 p-3"><strong className="text-xs font-semibold text-slate-800">Never written on-chain</strong><p className="mt-1 text-xs leading-5 text-slate-500">Student name · Grade · Certificate file · Contact details</p></div>

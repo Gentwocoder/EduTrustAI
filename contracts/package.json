@@ -7,7 +7,9 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network botTestnet",
-    "deploy:mainnet": "hardhat run scripts/deploy.ts --network botMainnet"
+    "deploy:mainnet": "hardhat run scripts/deploy.ts --network botMainnet",
+    "deploy:v2:testnet": "hardhat run scripts/deploy-v2.ts --network botTestnet",
+    "deploy:v2:mainnet": "hardhat run scripts/deploy-v2.ts --network botMainnet"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0"

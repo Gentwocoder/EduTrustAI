@@ -6,7 +6,7 @@ import { useAppKitAccount, useAppKitProvider, type Provider } from "@reown/appki
 import { useBotNetwork } from "@/components/network-provider";
 import { ensureBotChain, type WalletRequestProvider } from "@/lib/wallet-network";
 import { friendlyTransactionError } from "@/lib/transaction-errors";
-import { REGISTRY_ABI, REGISTRY_ADDRESS } from "@/lib/registry";
+import { REGISTRY_ABI, registryAddressForNetwork } from "@/lib/registry";
 import { AlertCircleIcon, CheckCircleIcon, FileTextIcon } from "@/components/icons";
 
 type BulkRow = {
@@ -65,7 +65,7 @@ function parseCsv(text: string) {
 }
 
 export function BulkIssuance({ onComplete }: { onComplete: () => void }) {
-  const { network } = useBotNetwork();
+  const { network, networkKey } = useBotNetwork();
   const { address, isConnected } = useAppKitAccount({ namespace: "eip155" });
   const { walletProvider } = useAppKitProvider<Provider>("eip155");
   const [rows, setRows] = useState<BulkRow[]>([]);
@@ -104,13 +104,13 @@ export function BulkIssuance({ onComplete }: { onComplete: () => void }) {
       await ensureBotChain(walletProvider as WalletRequestProvider, network);
       const provider = new BrowserProvider(walletProvider);
       const signer = await provider.getSigner();
-      const registry = new Contract(REGISTRY_ADDRESS, REGISTRY_ABI, signer);
+      const registry = new Contract(registryAddressForNetwork(networkKey), REGISTRY_ABI, signer);
 
       for (let index = 0; index < rows.length; index += 1) {
         if (rows[index].status === "confirmed") continue;
         setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, status: "issuing", message: "Waiting for wallet confirmation" } : row));
         try {
-          const transaction = await registry.issueCredential(
+          const transaction = await registry["issueCredential(bytes32,bytes32)"](
             hashText(rows[index].credentialId),
             rows[index].documentHash,
           );

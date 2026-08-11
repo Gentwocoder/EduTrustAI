@@ -3,8 +3,9 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { isHexString } from "ethers";
 import { useBotNetwork } from "@/components/network-provider";
-import { registryExplorerUrl, type BotNetworkKey } from "@/lib/registry";
-import { AlertCircleIcon, CheckCircleIcon, CircleHelpIcon, ExternalLinkIcon, SearchIcon } from "@/components/icons";
+import { registryAddressForNetwork, registryExplorerUrl, type BotNetworkKey } from "@/lib/registry";
+import { downloadVerificationReceipt } from "@/lib/verification-receipt";
+import { AlertCircleIcon, CheckCircleIcon, CircleHelpIcon, DownloadIcon, ExternalLinkIcon, SearchIcon } from "@/components/icons";
 
 type RegistryRecord = {
   credentialIdHash: string;
@@ -12,7 +13,11 @@ type RegistryRecord = {
   issuer: string;
   issuedAt: number;
   revokedAt: number;
-  status: "valid" | "revoked" | "unknown";
+  expiresAt?: number;
+  supersedes?: string;
+  replacement?: string;
+  transactionHash?: string | null;
+  status: "valid" | "revoked" | "expired" | "replaced" | "unknown";
   institutionProfile: {
     id: string;
     name: string;
@@ -139,6 +144,39 @@ export function VerificationDemo({
     ? record.documentHash.toLowerCase() === documentHash.toLowerCase()
     : null;
 
+  function downloadReceipt() {
+    if (!record || record.status === "unknown") return;
+    downloadVerificationReceipt({
+      credentialIdHash: record.credentialIdHash,
+      status: record.status,
+      issuer: record.issuer,
+      institution: record.institutionProfile?.name ?? "Authorised issuer",
+      documentCheck: fingerprintMatches === null
+        ? "Not supplied"
+        : fingerprintMatches
+          ? "Fingerprint matched"
+          : "Fingerprint mismatch",
+      network: network.name,
+      chainId: network.chainId,
+      registryAddress: registryAddressForNetwork(networkKey),
+      transactionHash: record.transactionHash,
+      issuedAt: record.issuedAt,
+      expiresAt: record.expiresAt,
+      replacement: record.replacement,
+      verifiedAt: new Date(),
+    });
+  }
+
+  const resultTitle = record?.status === "revoked"
+    ? "Credential revoked"
+    : record?.status === "expired"
+      ? "Credential expired"
+      : record?.status === "replaced"
+        ? "Credential replaced"
+        : fingerprintMatches === false
+          ? "Document does not match"
+          : "Credential verified";
+
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="verification-title">
       <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
@@ -216,18 +254,23 @@ export function VerificationDemo({
             <div className="flex items-center gap-3">
               <StatusIcon tone={record.status === "valid" && fingerprintMatches !== false ? "green" : "red"} />
               <div>
-                <strong className="block text-sm font-semibold text-slate-900">{record.status === "revoked" ? "Credential revoked" : fingerprintMatches === false ? "Document does not match" : "Credential verified"}</strong>
+                <strong className="block text-sm font-semibold text-slate-900">{resultTitle}</strong>
                 <span className="text-xs text-slate-600">This result was returned by the deployed registry contract.</span>
               </div>
             </div>
             <dl className="mt-4 grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200 sm:grid-cols-2">
-              <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Registry status</dt><dd className={`mt-1 text-xs font-semibold ${record.status === "valid" ? "text-emerald-700" : "text-red-700"}`}>{record.status === "valid" ? "Valid" : "Revoked"}</dd></div>
+              <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Registry status</dt><dd className={`mt-1 text-xs font-semibold capitalize ${record.status === "valid" ? "text-emerald-700" : record.status === "revoked" ? "text-red-700" : "text-amber-700"}`}>{record.status}</dd></div>
               <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Issued</dt><dd className="mt-1 text-sm font-semibold text-slate-800">{new Date(record.issuedAt * 1000).toLocaleString()}</dd></div>
               <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Issuing institution</dt><dd className="mt-1 text-sm font-semibold text-slate-800">{record.institutionProfile?.name ?? "Authorised issuer"}</dd>{record.institutionProfile?.verified && <span className="mt-1 inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">Verified profile</span>}</div>
               <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Issuer wallet</dt><dd className="mt-1 font-mono text-xs font-semibold text-slate-800" title={record.issuer}>{shortHash(record.issuer)}</dd></div>
               <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Document check</dt><dd className="mt-1 text-sm font-semibold text-slate-800">{fingerprintMatches === null ? "Not supplied" : fingerprintMatches ? "Fingerprint matched" : "Fingerprint mismatch"}</dd></div>
+              {record.expiresAt && record.expiresAt > 0 ? <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Expiry</dt><dd className="mt-1 text-sm font-semibold text-slate-800">{new Date(record.expiresAt * 1000).toLocaleString()}</dd></div> : null}
+              {record.status === "replaced" && record.replacement ? <div className="bg-white px-3 py-2.5"><dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Replacement</dt><dd className="mt-1 font-mono text-xs font-semibold text-slate-800" title={record.replacement}>{shortHash(record.replacement)}</dd></div> : null}
             </dl>
-            <a className="mt-3 inline-flex items-center gap-2 rounded-md px-1 py-1 text-sm font-semibold text-blue-700 transition hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-200" href={registryExplorerUrl(network)} target="_blank" rel="noreferrer">View contract on BOTScan <ExternalLinkIcon className="size-4" /></a>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200" href={registryExplorerUrl(network)} target="_blank" rel="noreferrer">View contract <ExternalLinkIcon className="size-4" /></a>
+              <button type="button" onClick={downloadReceipt} className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-200"><DownloadIcon className="size-4" />Download PDF receipt</button>
+            </div>
           </div>
         )}
 

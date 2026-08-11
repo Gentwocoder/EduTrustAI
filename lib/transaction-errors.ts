@@ -1,4 +1,11 @@
-export type TransactionAction = "issue" | "revoke" | "grantIssuer" | "revokeIssuer";
+export type TransactionAction =
+  | "issue"
+  | "revoke"
+  | "grantIssuer"
+  | "revokeIssuer"
+  | "renew"
+  | "correct"
+  | "adminRotation";
 
 export type FriendlyTransactionError = {
   title: string;
@@ -74,6 +81,20 @@ export function friendlyTransactionError(
       };
     }
 
+    if (action === "renew" || action === "correct") {
+      return {
+        title: "Credential update not permitted",
+        message: "Use the original issuer wallet or the registry administrator to renew or correct this credential.",
+      };
+    }
+
+    if (action === "adminRotation") {
+      return {
+        title: "Recovery or administrator access required",
+        message: `Connect the current administrator, configured recovery multisig, or pending administrator wallet for this step on ${networkName}.`,
+      };
+    }
+
     return {
       title: "Administrator access required",
       message: `Only a registry administrator can manage issuer wallets on ${networkName}. Connect the administrator wallet and try again.`,
@@ -97,6 +118,25 @@ export function friendlyTransactionError(
     return {
       title: "Credential not found",
       message: `This credential was not found on ${networkName}. Confirm that the correct network is selected and try again.`,
+    };
+  }
+
+  if (hasAny(details, [
+    "credentialnotactive",
+    "invalidexpiry",
+  ])) {
+    return {
+      title: "Credential cannot be replaced",
+      message: "The credential is not currently valid, or the selected expiry is not in the future. Refresh its status and review the lifecycle details.",
+    };
+  }
+
+  if (hasAny(details, [
+    "notpendingadmin",
+  ])) {
+    return {
+      title: "Wallet is not the pending administrator",
+      message: "Connect the exact wallet named in the rotation proposal, then accept the administrator role.",
     };
   }
 

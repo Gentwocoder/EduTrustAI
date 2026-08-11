@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useBotNetwork } from "@/components/network-provider";
-import { REGISTRY_ADDRESS, registryExplorerUrl } from "@/lib/registry";
+import { registryAddressForNetwork, registryExplorerUrl } from "@/lib/registry";
 import { ExternalLinkIcon } from "@/components/icons";
 
 type RegistryHealth = {
@@ -55,7 +55,7 @@ export function RegistryOverview() {
     },
     {
       label: "Registry contract",
-      value: shortAddress(REGISTRY_ADDRESS),
+      value: shortAddress(registryAddressForNetwork(networkKey)),
       detail: "Deployed credential registry",
       tone: "font-mono text-slate-950",
       href: registryExplorerUrl(network),

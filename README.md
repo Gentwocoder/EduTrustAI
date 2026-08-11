@@ -12,6 +12,7 @@ EduTrust AI is a standalone RWA credential-registry MVP for schools, registrars,
 | --- | --- |
 | Web application | [edu-trust-ai.vercel.app](https://edu-trust-ai.vercel.app) |
 | Institution portal | [edu-trust-ai.vercel.app/dashboard](https://edu-trust-ai.vercel.app/dashboard) |
+| Student credential wallet | [edu-trust-ai.vercel.app/student](https://edu-trust-ai.vercel.app/student) |
 | Source repository | [github.com/Gentwocoder/EduTrustAI](https://github.com/Gentwocoder/EduTrustAI) |
 | BOT Chain developer guide | [dev-docs.botchain.ai](https://dev-docs.botchain.ai/docs/Developers/quick-guide/) |
 
@@ -100,6 +101,22 @@ credentialId,documentHash
 
 The institution portal validates the rows and submits them sequentially. Each row is an independent wallet transaction, so confirmed credentials are not repeated when another row fails.
 
+### Student credential wallet and controlled links
+
+Recipients can connect an EVM wallet at `/student`, add an institution-issued credential ID, and keep the resulting public registry reference in a browser collection scoped to that wallet address. Only the hashed ID and public registry metadata are persisted; the plaintext credential ID is not retained.
+
+A saved credential can produce a wallet-signed link lasting 1, 7, or 30 days. The link identifies the presenting wallet, selects the correct BOT Chain network, and stops rendering the credential after expiry. It does not require gas or an on-chain transaction. Because the deployed V1 schema does not bind credentials to recipient addresses, the signature is evidence of who presented the link—not proof that the wallet owner is the student named in a private source record. MVP links cannot be revoked before their expiry.
+
+### Downloadable verification receipts
+
+Every successful public verification can export a locally generated PDF containing the observed status, institution and issuer wallet, document-match result, network and chain ID, registry contract, issuance transaction, issue/expiry timestamps, replacement pointer, and verification timestamp. The PDF is generated in the browser without uploading verification data to a receipt service. It is a point-in-time report; verifiers should re-check the live registry before making a later decision.
+
+### Expiry, renewal, correction, and admin recovery
+
+These lifecycle writes are implemented in `EduTrustRegistryV2`, which is deployment-ready but not retrofitted into the immutable live V1 contract. V2 preserves the V1 read shape and adds optional expiry, explicit renewal/correction replacement links, and two-step primary-administrator rotation.
+
+The V2 recovery role should be assigned to a reviewed Safe or other EVM multisig. The multisig proposes a replacement administrator and the proposed wallet accepts; acceptance removes administrator and issuer roles from the previous primary wallet. The application detects the registry version and disables only V2 write controls while a network still points to V1.
+
 ### Verified institution profiles
 
 The verifier always displays the canonical issuer wallet. When that wallet also has a reviewed EduTrust profile, the response adds the institution name, category, website, country, and verification basis. Profile metadata is server-side configuration; holding `ISSUER_ROLE` alone does not permit a wallet to invent a verified organisation name.
@@ -130,7 +147,17 @@ The blockchain is the source of truth for credential existence, issuer, fingerpr
 - Verified institution name and category when the issuer has a reviewed profile
 - Issuer address, issue date, revocation state, and BOTScan contract link
 - QR deep links that select the correct BOT Chain network and verify immediately
+- Locally generated PDF verification receipts with transaction and timestamp evidence
 - No account or wallet required
+
+### Student credential wallet
+
+- Wallet-scoped local collection containing only public credential hashes and registry metadata
+- Live refresh of valid, revoked, expired, or replaced status
+- Wallet-signed verification links with 1, 7, or 30 day expiry
+- Clear presenter-versus-owner disclosure
+- PDF receipt export for saved credentials
+- Explicit credential removal and wallet disconnection
 
 ### Institution portal
 
@@ -145,6 +172,8 @@ The blockchain is the source of truth for credential existence, issuer, fingerpr
 - Credential revocation with a locally hashed reason
 - Wallet management and explicit disconnection so another wallet can connect
 - QR code and shareable verification link for every issued record
+- Optional expiry during issuance when Registry V2 is active
+- Dedicated renewal, correction, and administrator recovery workspace
 - BOTScan links for contract and transaction inspection
 
 ### Registry API
@@ -152,18 +181,20 @@ The blockchain is the source of truth for credential existence, issuer, fingerpr
 - Contract health and chain-ID reporting
 - Canonical credential lookup
 - Issuer activity reconstructed from on-chain events
-- Current status resolution for issued credentials, including revocations
+- Current status resolution for issued credentials, including revocations, expiry, and replacement
+- Registry-version detection and issuance-transaction lookup
 - Verified institution profile resolution for known issuer wallets
 - Validation for network keys, credential IDs, and issuer addresses
 - `502` response when the selected BOT Chain RPC cannot be reached
 
-### Smart contract
+### Smart contracts
 
-- Role-controlled issuance with OpenZeppelin `AccessControl`
-- Duplicate, empty-hash, unknown-credential, and repeated-revocation protection
-- Permanent status transitions from `Unknown` to `Valid` to `Revoked`
-- Public view functions for credential lookup and fingerprint comparison
-- Auditable issuance and revocation events
+- Deployed V1 registry with role-controlled issuance and revocation
+- Deployment-ready V2 registry with V1-compatible reads
+- Optional expiry and explicit `Renewed`, `Corrected`, and `Replaced` lifecycle semantics
+- Two-step administrator rotation through a separately protected recovery role
+- Duplicate, empty-hash, unknown-credential, repeated-revocation, invalid-expiry, and inactive-replacement protection
+- Auditable issuance, revocation, replacement, and administration events
 
 ## BOT Chain integration
 
@@ -185,6 +216,8 @@ Mainnet deployment transaction:
 [`0x107fc9b199a1da8a48df977078cb2045729bd86c4da0106534a7d0d956541dec`](https://scan.botchain.ai/tx/0x107fc9b199a1da8a48df977078cb2045729bd86c4da0106534a7d0d956541dec)
 
 The frontend defaults to Mainnet. The selected network is kept in browser storage, and the wallet is prompted to switch to the corresponding EVM chain before a write transaction.
+
+The addresses above are the deployed V1 registries. V2 is included in source but requires a separate Testnet deployment and review before either network-specific frontend address is changed. Existing V1 records remain at the V1 address and are not migrated automatically.
 
 ## On-chain data model
 
@@ -211,7 +244,7 @@ struct Credential {
 | `CredentialIssued` | Records the credential hash, document hash, issuer, and issue time |
 | `CredentialRevoked` | Records the credential hash, revoker, reason hash, and revocation time |
 
-The contract is written in Solidity `0.8.28`, uses OpenZeppelin `AccessControl`, and is compiled for the `paris` EVM target required by the current BOT Chain toolchain.
+Both registry versions are written in Solidity `0.8.28`, use OpenZeppelin `AccessControl`, and compile for the `paris` EVM target required by the current BOT Chain toolchain. V2 adds `expiresAt`, `supersedes`, and `replacement` lifecycle fields while retaining the original five-field read order.
 
 ## Privacy and data boundaries
 
@@ -219,7 +252,7 @@ The contract is written in Solidity `0.8.28`, uses OpenZeppelin `AccessControl`,
 | --- | --- |
 | BOT Chain | Hashed credential ID, SHA-256 document fingerprint, issuer address, timestamps, status, and hashed revocation reason in the event log |
 | Browser memory | Selected source file and temporary extracted OCR text while the review is open; plaintext revocation reason while the dialog is open |
-| Browser local storage | Selected network and wallet/network-scoped activity labels used to restore readable credential IDs |
+| Browser local storage | Selected network, issuer activity labels, and student-wallet collections scoped by wallet address; the student wallet stores the public credential hash rather than the entered plaintext ID |
 | Registry API | Transient RPC results returned to the requesting client; no application database writes |
 | Never uploaded or written on-chain | Student name, grade, email, contact details, transcript, source PDF/image, extracted OCR text, and internal registrar notes |
 
@@ -260,6 +293,9 @@ Email/social login, smart-account abstraction, swaps, on-ramp, send/receive cont
 app/
   api/registry/route.ts            BOT Chain read API
   dashboard/page.tsx               institution portal route
+  dashboard/lifecycle/page.tsx     V2 lifecycle and recovery workspace
+  student/page.tsx                 recipient credential wallet
+  share/[token]/page.tsx           wallet-signed time-limited presentation
   verify/[network]/[credential]/   QR/deep-link verification route
   page.tsx                         public verification product page
 components/
@@ -267,18 +303,23 @@ components/
   bulk-issuance.tsx                CSV validation and sequential batch issuance
   credential-qr.tsx                privacy-bounded QR sharing dialog
   local-document-review.tsx        browser-only PDF extraction and OCR review
+  student-credential-wallet.tsx    recipient collection and controlled sharing
+  lifecycle-manager.tsx            renewal, correction, and admin rotation
   verification-demo.tsx            public verification interface
   network-provider.tsx             selected-network state
   wallet-provider.tsx              Reown AppKit configuration
 contracts/
   contracts/EduTrustRegistry.sol
-  scripts/deploy.ts                 guarded BOT Chain deployment
+  contracts/EduTrustRegistryV2.sol
+  scripts/deploy.ts                 guarded V1 BOT Chain deployment
+  scripts/deploy-v2.ts              guarded V2 deployment with recovery admin
   test/EduTrustRegistry.ts          contract behaviour tests
 docs/
   ARCHITECTURE.md                   broader product architecture concept
   DEMO-SCRIPT.md                    hackathon demo outline
 lib/
   appkit.ts                         EVM chain and wallet definitions
+  credential-share.ts               wallet-signed presentation tokens
   institutions.ts                   reviewed issuer-profile resolution
   registry.ts                       registry ABI, address, and network metadata
 tests/
@@ -319,10 +360,12 @@ The public verifier is available at `/`; the issuer workspace is available at `/
 | Variable | Required | Description |
 | --- | --- | --- |
 | `NEXT_PUBLIC_REOWN_PROJECT_ID` | No | Public Reown application identifier used for wallet discovery and WalletConnect. A project default is included. |
-| `NEXT_PUBLIC_EDUTRUST_REGISTRY_ADDRESS` | No | Overrides the deployed registry address used by both supported networks. |
+| `NEXT_PUBLIC_EDUTRUST_REGISTRY_ADDRESS` | No | Legacy shared registry override used when network-specific values are absent. |
+| `NEXT_PUBLIC_EDUTRUST_MAINNET_REGISTRY_ADDRESS` | No | Mainnet-only registry override, used to activate a separately deployed V2 contract. |
+| `NEXT_PUBLIC_EDUTRUST_TESTNET_REGISTRY_ADDRESS` | No | Testnet-only registry override, used to rehearse V2 without changing Mainnet. |
 | `EDUTRUST_INSTITUTION_PROFILES_JSON` | No | Server-only JSON array of reviewed institution profiles keyed by issuer wallet. |
 
-`NEXT_PUBLIC_REOWN_PROJECT_ID` and `NEXT_PUBLIC_EDUTRUST_REGISTRY_ADDRESS` are client-visible configuration, not wallet secrets. `EDUTRUST_INSTITUTION_PROFILES_JSON` is server-only and must not use the `NEXT_PUBLIC_` prefix. Never place a private key, seed phrase, or keystore password in a public variable.
+All `NEXT_PUBLIC_` variables are client-visible configuration, not wallet secrets. `EDUTRUST_INSTITUTION_PROFILES_JSON` is server-only and must not use the `NEXT_PUBLIC_` prefix. Never place a private key, seed phrase, or keystore password in a public variable.
 
 ## Registry API reference
 
@@ -334,7 +377,7 @@ All requests are `GET /api/registry`. If `network` is omitted, Mainnet is used.
 GET /api/registry?network=mainnet
 ```
 
-Returns the selected chain ID, network name, registry address, and whether contract bytecode exists at that address.
+Returns the selected chain ID, network name, registry address, detected contract version, and whether contract bytecode exists at that address. Credential responses also include the issuance transaction and V2 lifecycle fields when available.
 
 ### Look up a credential
 
@@ -405,6 +448,16 @@ npm run deploy:testnet
 
 The script refuses to deploy if the connected chain ID is wrong or the deployer has no BOT for gas.
 
+### Deploy Registry V2 to Testnet
+
+Set a recovery administrator. For production this should be a separately controlled Safe or other reviewed EVM multisig.
+
+```bash
+EDUTRUST_RECOVERY_ADMIN=0x... npm run deploy:v2:testnet
+```
+
+After verification, set `NEXT_PUBLIC_EDUTRUST_TESTNET_REGISTRY_ADDRESS` to the new address. The Mainnet frontend can continue reading V1 independently.
+
 ### Deploy to Mainnet
 
 Mainnet deployment is intentionally locked behind an explicit confirmation variable:
@@ -413,7 +466,15 @@ Mainnet deployment is intentionally locked behind an explicit confirmation varia
 CONFIRM_MAINNET_DEPLOYMENT=yes npm run deploy:mainnet
 ```
 
-Use real Mainnet BOT only after a successful Testnet rehearsal. The constructor grants both `DEFAULT_ADMIN_ROLE` and `ISSUER_ROLE` to the supplied deployer address.
+Use real Mainnet BOT only after a successful Testnet rehearsal. The V1 constructor grants both `DEFAULT_ADMIN_ROLE` and `ISSUER_ROLE` to the supplied deployer address.
+
+V2 Mainnet deployment additionally requires a separate recovery address:
+
+```bash
+EDUTRUST_RECOVERY_ADMIN=0x... \
+CONFIRM_MAINNET_DEPLOYMENT=yes \
+npm run deploy:v2:mainnet
+```
 
 ### Verify a deployment on BOTScan
 
@@ -477,6 +538,10 @@ Changes pushed to the connected production branch can be deployed automatically 
 - Only wallets granted `ISSUER_ROLE` can issue credentials.
 - Revocation requires `ISSUER_ROLE`; the caller must also be the original issuer or hold `DEFAULT_ADMIN_ROLE`.
 - Revocation is a permanent status change; the audit history remains on-chain.
+- Controlled share links are public to anyone who receives the URL, expire after at most 30 days, and cannot be revoked early in this MVP.
+- A presenter signature does not prove student ownership because recipient wallets are not stored in V1 or V2.
+- Verification receipts are point-in-time reports, not substitutes for a fresh registry check.
+- V2 recovery should be assigned to a separately reviewed multisig; never use the same single key for both primary administration and recovery.
 - The public API trusts the configured BOT Chain RPC. Production operators may add RPC redundancy, rate limits, monitoring, and caching.
 - The contract stores hashes, but low-entropy identifiers can still be guessed and hashed. Institutions should use sufficiently random identifiers.
 - This hackathon MVP has not been presented as a third-party security audit.
@@ -494,18 +559,21 @@ Working today:
 - public status and fingerprint verification
 - broad EVM wallet connectivity
 - wallet-scoped activity restoration from chain events
+- student credential collection with wallet-signed, time-limited presentation links
+- downloadable local PDF verification receipts
+- V2-ready expiry, renewal, correction, and administrator recovery interfaces
 - Vercel-hosted responsive web interface
 
 Future production extensions:
 
 - self-service institution onboarding and evidence review
 - encrypted institutional database and private object storage
-- student/graduate delivery portal
-- generated credential PDFs and selective disclosure
+- authenticated cross-device student delivery and early share-link revocation
+- institution-issued recipient binding and selective disclosure
 - multilingual OCR packs, offline-bundled OCR assets, and advanced local document-difference explanations
 - registrar approval workflows and school-system integrations
 - decentralised or redundant RPC/indexing infrastructure
-- independent smart-contract audit, operational monitoring, and incident procedures
+- V2 Testnet deployment, independent smart-contract audit, multisig rehearsal, operational monitoring, and incident procedures
 
 ## Why it is different
 
