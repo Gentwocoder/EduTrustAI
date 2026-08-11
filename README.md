@@ -105,7 +105,7 @@ The institution portal validates the rows and submits them sequentially. Each ro
 
 Recipients can connect an EVM wallet at `/student`, add an institution-issued credential ID, and keep the resulting public registry reference in a browser collection scoped to that wallet address. Only the hashed ID and public registry metadata are persisted; the plaintext credential ID is not retained.
 
-A saved credential can produce a wallet-signed link lasting 1, 7, or 30 days. The link identifies the presenting wallet, selects the correct BOT Chain network, and stops rendering the credential after expiry. It does not require gas or an on-chain transaction. Because the deployed V1 schema does not bind credentials to recipient addresses, the signature is evidence of who presented the link—not proof that the wallet owner is the student named in a private source record. MVP links cannot be revoked before their expiry.
+A saved credential can produce a wallet-signed link lasting 1, 7, or 30 days. The link identifies the presenting wallet, selects the correct BOT Chain network, and stops rendering the credential after expiry. It does not require gas or an on-chain transaction. Because the registry schema does not bind credentials to recipient addresses, the signature is evidence of who presented the link—not proof that the wallet owner is the student named in a private source record. MVP links cannot be revoked before their expiry.
 
 ### Downloadable verification receipts
 
@@ -113,7 +113,7 @@ Every successful public verification can export a locally generated PDF containi
 
 ### Expiry, renewal, correction, and admin recovery
 
-These lifecycle writes are implemented in `EduTrustRegistryV2`, which is deployment-ready but not retrofitted into the immutable live V1 contract. V2 preserves the V1 read shape and adds optional expiry, explicit renewal/correction replacement links, and two-step primary-administrator rotation.
+`EduTrustRegistryV2` is deployed and verified on BOT Chain Mainnet and Testnet. It preserves the V1 read shape while adding optional expiry, explicit renewal/correction replacement links, and two-step primary-administrator rotation. The immutable V1 contracts remain available at their original addresses for audit history.
 
 The V2 recovery role should be assigned to a reviewed Safe or other EVM multisig. The multisig proposes a replacement administrator and the proposed wallet accepts; acceptance removes administrator and issuer roles from the previous primary wallet. The application detects the registry version and disables only V2 write controls while a network still points to V1.
 
@@ -190,7 +190,7 @@ The blockchain is the source of truth for credential existence, issuer, fingerpr
 ### Smart contracts
 
 - Deployed V1 registry with role-controlled issuance and revocation
-- Deployment-ready V2 registry with V1-compatible reads
+- Deployed and verified V2 registries on Mainnet and Testnet with V1-compatible reads
 - Optional expiry and explicit `Renewed`, `Corrected`, and `Replaced` lifecycle semantics
 - Two-step administrator rotation through a separately protected recovery role
 - Duplicate, empty-hash, unknown-credential, repeated-revocation, invalid-expiry, and inactive-replacement protection
@@ -200,24 +200,19 @@ The blockchain is the source of truth for credential existence, issuer, fingerpr
 
 EduTrust uses BOT Chain as the public integrity and lifecycle layer. It does not mint a token or NFT; native BOT is used only to pay transaction gas.
 
-| Network | Chain ID | Native token | RPC | Explorer | Registry contract |
+| Network | Chain ID | Native token | RPC | Explorer | Active V2 registry |
 | --- | ---: | --- | --- | --- | --- |
-| Mainnet | `677` | `BOT` | `https://rpc.botchain.ai` | [BOTScan Mainnet](https://scan.botchain.ai) | [`0x49F1...505f`](https://scan.botchain.ai/address/0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f) |
-| Testnet | `968` | `BOT` | `https://rpc.bohr.life` | [BOTScan Testnet](https://scan.bohr.life) | [`0x49F1...505f`](https://scan.bohr.life/address/0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f) |
+| Mainnet | `677` | `BOT` | `https://rpc.botchain.ai` | [BOTScan Mainnet](https://scan.botchain.ai) | [`0x3032...D48C`](https://scan.botchain.ai/address/0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C) |
+| Testnet | `968` | `BOT` | `https://rpc.bohr.life` | [BOTScan Testnet](https://scan.bohr.life) | [`0xc3B4...ebf3`](https://scan.bohr.life/address/0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3) |
 
-Registry address:
-
-```text
-0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f
-```
-
-Mainnet deployment transaction:
-
-[`0x107fc9b199a1da8a48df977078cb2045729bd86c4da0106534a7d0d956541dec`](https://scan.botchain.ai/tx/0x107fc9b199a1da8a48df977078cb2045729bd86c4da0106534a7d0d956541dec)
+| V2 deployment | Transaction |
+| --- | --- |
+| [Mainnet contract](https://scan.botchain.ai/address/0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C#code) | [`0x74542f...72703f`](https://scan.botchain.ai/tx/0x74542f9dba59bfb3d3cb49ff51592aa234f28df86eecc260baeeca752c72703f) |
+| [Testnet contract](https://scan.bohr.life/address/0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3#code) | [`0xc0fe42...32eba`](https://scan.bohr.life/tx/0xc0fe4261aa73d52e080ef523812896c071e7c72f1dd937abe62bae2b2ad32eba) |
 
 The frontend defaults to Mainnet. The selected network is kept in browser storage, and the wallet is prompted to switch to the corresponding EVM chain before a write transaction.
 
-The addresses above are the deployed V1 registries. V2 is included in source but requires a separate Testnet deployment and review before either network-specific frontend address is changed. Existing V1 records remain at the V1 address and are not migrated automatically.
+The immutable V1 registry remains available at [`0x49F1...505f`](https://scan.botchain.ai/address/0x49F1D0F56b9d7217fea0C4E0abAf64200b86505f). V1 records are not migrated automatically; the active application registries are the separately deployed V2 contracts above.
 
 ## On-chain data model
 
@@ -456,7 +451,7 @@ Set a recovery administrator. For production this should be a separately control
 EDUTRUST_RECOVERY_ADMIN=0x... npm run deploy:v2:testnet
 ```
 
-After verification, set `NEXT_PUBLIC_EDUTRUST_TESTNET_REGISTRY_ADDRESS` to the new address. The Mainnet frontend can continue reading V1 independently.
+The verified Testnet deployment is `0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3`. Set `NEXT_PUBLIC_EDUTRUST_TESTNET_REGISTRY_ADDRESS` to this address when configuring a deployment.
 
 ### Deploy to Mainnet
 
@@ -478,18 +473,20 @@ npm run deploy:v2:mainnet
 
 ### Verify a deployment on BOTScan
 
-The constructor argument is the initial administrator wallet. With the included Hardhat chain descriptors:
+V1 accepts one constructor argument; V2 accepts the initial administrator and recovery administrator:
 
 ```bash
 npx hardhat verify etherscan \
   --network botTestnet \
-  <CONTRACT_ADDRESS> \
-  <INITIAL_ADMIN_ADDRESS>
+  <V2_CONTRACT_ADDRESS> \
+  <INITIAL_ADMIN_ADDRESS> \
+  <RECOVERY_ADMIN_ADDRESS>
 
 npx hardhat verify etherscan \
   --network botMainnet \
-  <CONTRACT_ADDRESS> \
-  <INITIAL_ADMIN_ADDRESS>
+  <V2_CONTRACT_ADDRESS> \
+  <INITIAL_ADMIN_ADDRESS> \
+  <RECOVERY_ADMIN_ADDRESS>
 ```
 
 ## Validation
@@ -516,7 +513,7 @@ npm run compile
 npm test
 ```
 
-The contract tests cover successful issuance and verification, document mismatch detection, revocation, and rejection of unauthorised issuance.
+The contract tests cover V1 issuance, verification and revocation plus V2 expiry, renewal, correction, access control and administrator recovery.
 
 ## Deploying the frontend to Vercel
 
@@ -561,7 +558,7 @@ Working today:
 - wallet-scoped activity restoration from chain events
 - student credential collection with wallet-signed, time-limited presentation links
 - downloadable local PDF verification receipts
-- V2-ready expiry, renewal, correction, and administrator recovery interfaces
+- live V2 expiry, renewal, correction, and administrator recovery on Mainnet and Testnet
 - Vercel-hosted responsive web interface
 
 Future production extensions:
@@ -573,7 +570,7 @@ Future production extensions:
 - multilingual OCR packs, offline-bundled OCR assets, and advanced local document-difference explanations
 - registrar approval workflows and school-system integrations
 - decentralised or redundant RPC/indexing infrastructure
-- V2 Testnet deployment, independent smart-contract audit, multisig rehearsal, operational monitoring, and incident procedures
+- independent smart-contract audit, multisig recovery rehearsal, operational monitoring, and incident procedures
 
 ## Why it is different
 
