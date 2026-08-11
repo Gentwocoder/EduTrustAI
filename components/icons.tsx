@@ -198,3 +198,55 @@ export function UserPlusIcon(props: IconProps) {
     </IconBase>
   );
 }
+
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 20h14" />
+    </IconBase>
+  );
+}
+
+export function LinkIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.15 1.15" />
+      <path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.15-1.15" />
+    </IconBase>
+  );
+}
+
+export function KeyIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <circle cx="8" cy="15" r="4" />
+      <path d="m11 12 8-8" />
+      <path d="m16 7 2 2M14 9l2 2" />
+    </IconBase>
+  );
+}
+
+export function RefreshIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M20 7v5h-5" />
+      <path d="M4 17v-5h5" />
+      <path d="M6.1 8.5A7 7 0 0 1 18.5 7L20 12" />
+      <path d="M17.9 15.5A7 7 0 0 1 5.5 17L4 12" />
+    </IconBase>
+  );
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 7h16" />
+      <path d="M9 3h6l1 4H8z" />
+      <path d="m7 7 1 14h8l1-14" />
+      <path d="M10 11v6M14 11v6" />
+    </IconBase>
+  );
+}
