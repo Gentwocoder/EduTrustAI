@@ -124,7 +124,7 @@ contract EduTrustRegistryV2 is AccessControl {
         bytes32 replacementDocumentHash,
         uint64 expiresAt
     ) external onlyRole(ISSUER_ROLE) {
-        Credential storage credential = _replaceCredential(
+        _replaceCredential(
             credentialIdHash,
             replacementCredentialIdHash,
             replacementDocumentHash,
@@ -136,9 +136,7 @@ contract EduTrustRegistryV2 is AccessControl {
             msg.sender,
             uint64(block.timestamp)
         );
-        // Silence the storage-return warning while keeping correction and renewal paths explicit.
-        credential.issuedAt;
-    }
+     }
 
     function correctCredential(
         bytes32 credentialIdHash,
@@ -146,7 +144,7 @@ contract EduTrustRegistryV2 is AccessControl {
         bytes32 replacementDocumentHash,
         uint64 expiresAt
     ) external onlyRole(ISSUER_ROLE) {
-        Credential storage credential = _replaceCredential(
+        _replaceCredential(
             credentialIdHash,
             replacementCredentialIdHash,
             replacementDocumentHash,
@@ -158,8 +156,7 @@ contract EduTrustRegistryV2 is AccessControl {
             msg.sender,
             uint64(block.timestamp)
         );
-        credential.issuedAt;
-    }
+     }
 
     /// @notice V1-compatible canonical read.
     function getCredential(bytes32 credentialIdHash)
@@ -252,8 +249,8 @@ contract EduTrustRegistryV2 is AccessControl {
         bytes32 replacementCredentialIdHash,
         bytes32 replacementDocumentHash,
         uint64 expiresAt
-    ) private returns (Credential storage credential) {
-        credential = credentials[credentialIdHash];
+    ) private {
+        Credential storage credential = credentials[credentialIdHash];
         if (credential.status == CredentialStatus.Unknown) revert CredentialNotFound(credentialIdHash);
         _requireController(credential);
         if (_effectiveStatus(credential) != CredentialStatus.Valid) {
