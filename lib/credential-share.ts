@@ -60,33 +60,41 @@ export function validateCredentialShareToken(
 ): CredentialShareValidation {
   try {
     const envelope = JSON.parse(decodeBase64Url(token)) as Partial<CredentialShareEnvelope>;
+    const network = envelope.network;
+    const credentialIdHash = envelope.credentialIdHash;
+    const presenter = envelope.presenter;
+    const expiresAt = envelope.expiresAt;
+    const signature = envelope.signature;
     if (
       envelope.version !== 1 ||
-      !isBotNetworkKey(envelope.network ?? null) ||
-      !isHexString(envelope.credentialIdHash, 32) ||
-      !isAddress(envelope.presenter ?? "") ||
-      typeof envelope.expiresAt !== "number" ||
-      !Number.isSafeInteger(envelope.expiresAt) ||
-      typeof envelope.signature !== "string"
+      typeof network !== "string" ||
+      !isBotNetworkKey(network) ||
+      typeof credentialIdHash !== "string" ||
+      !isHexString(credentialIdHash, 32) ||
+      typeof presenter !== "string" ||
+      !isAddress(presenter) ||
+      typeof expiresAt !== "number" ||
+      !Number.isSafeInteger(expiresAt) ||
+      typeof signature !== "string"
     ) {
       return { valid: false, reason: "invalid" };
     }
 
-    if (envelope.expiresAt <= now) return { valid: false, reason: "expired" };
-    if (envelope.expiresAt - now > MAX_SHARE_DURATION_SECONDS + 300) {
+    if (expiresAt <= now) return { valid: false, reason: "expired" };
+    if (expiresAt - now > MAX_SHARE_DURATION_SECONDS + 300) {
       return { valid: false, reason: "invalid" };
     }
 
     const payload: CredentialSharePayload = {
       version: 1,
-      network: envelope.network,
-      credentialIdHash: envelope.credentialIdHash,
-      presenter: getAddress(envelope.presenter),
-      expiresAt: envelope.expiresAt,
+      network,
+      credentialIdHash,
+      presenter: getAddress(presenter),
+      expiresAt,
     };
     const recovered = verifyMessage(
       credentialShareMessage(payload),
-      envelope.signature,
+      signature,
     );
     if (getAddress(recovered) !== payload.presenter) {
       return { valid: false, reason: "invalid" };
