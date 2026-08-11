@@ -1,6 +1,15 @@
 # EduTrust AI contracts
 
-`EduTrustRegistry` stores only credential identifiers and document fingerprints. Student names, grades and files remain off-chain.
+EduTrust contracts store credential identifiers, document fingerprints, lifecycle state, timestamps, and authorised wallet addresses. Student names, grades, contact details, and source files remain off-chain.
+
+## Contract versions
+
+| Contract | State | Capabilities |
+| --- | --- | --- |
+| `EduTrustRegistry` | Deployed V1 | Permissioned issuance, revocation, fingerprint verification, issuer role management |
+| `EduTrustRegistryV2` | Deployment-ready | V1-compatible reads plus expiry, renewal, correction, replacement links, and recoverable administration |
+
+V1 is immutable and non-upgradeable. V2 must be deployed as a separate contract. The frontend detects `contractVersion()`; existing V1 credentials remain readable at their original registry address.
 
 ## BOT Chain networks
 
@@ -17,11 +26,7 @@ npm run compile
 npm test
 ```
 
-## EVM compatibility
-
-Both Hardhat build profiles are explicitly pinned to `paris` for BOT Chain compatibility. `hardhat compile` uses the `default` profile, while `hardhat run` uses the `production` profile; both must specify the same compiler and EVM target. Do not remove either setting.
-
-After pulling a compiler-target update, clear cached artifacts before deployment:
+Both Hardhat build profiles are pinned to Solidity `0.8.28` and the `paris` EVM target required by BOT Chain. After compiler or target changes:
 
 ```bash
 npx hardhat clean
@@ -29,70 +34,90 @@ npm run compile
 npx hardhat --build-profile production compile --force
 ```
 
-## Testnet deployment
+## Secure signer configuration
 
-Deploy to Testnet before using Mainnet. Testnet BOT has no monetary value and is available from the official faucet.
-
-### 1. Add BOT Chain Testnet to the deployment wallet
-
-| Item | Value |
-| --- | --- |
-| Network name | BOT Chain Testnet |
-| RPC URL | `https://rpc.bohr.life` |
-| Chain ID | `968` |
-| Currency symbol | `BOT` |
-| Explorer | `https://scan.bohr.life` |
-
-### 2. Fund the wallet
-
-Use the [BOT Chain faucet](https://faucet.botchain.ai) to send test BOT to the deployment wallet. The intended project wallet is `0xAc7052141497866a8e3048B5Bb7a30c6418b5567`.
-
-Confirm the wallet has a positive test BOT balance before continuing.
-
-### 3. Store the signer securely
-
-Install the locked dependencies, then store the private key in Hardhat's encrypted keystore:
+Store the funded deployment key in Hardhat's encrypted keystore:
 
 ```bash
-npm ci
 npx hardhat keystore set BOT_PRIVATE_KEY
 ```
 
-Hardhat prompts for a keystore password and then the private key. Never paste a private key into chat, source code, shell history, an `.env` file committed to Git, or a GitHub secret that is exposed to untrusted workflows.
+Never place the private key or seed phrase in source code, committed environment files, chat, screenshots, or shell history. The intended public project wallet is `0xAc7052141497866a8e3048B5Bb7a30c6418b5567`.
 
-The private key must belong to the funded deployment wallet. The deployment script prints the derived public address so it can be checked before the transaction is broadcast.
+## V1 deployment
 
-### 4. Validate and deploy
+Testnet:
 
 ```bash
-npm run compile
-npm test
 npm run deploy:testnet
 ```
 
-The deployment script checks all of the following before broadcasting:
-
-- The selected network is a configured BOT Chain network
-- The connected chain ID is `968`
-- The signer has test BOT for gas
-- The deployed wallet becomes the initial administrator and issuer
-
-Successful output includes the contract address, deployment transaction hash and BOT Testnet explorer links. Keep those public values for frontend integration.
-
-## Mainnet deployment
-
-Mainnet deployment remains locked until it is explicitly confirmed after a successful Testnet rehearsal:
+Mainnet, only after a successful Testnet rehearsal:
 
 ```bash
 CONFIRM_MAINNET_DEPLOYMENT=yes npm run deploy:mainnet
 ```
 
-Mainnet deployment requires real BOT for gas. Review the contract address, transaction and roles on the explorer immediately after deployment.
+The V1 constructor accepts the initial administrator wallet and grants it both `DEFAULT_ADMIN_ROLE` and `ISSUER_ROLE`.
 
-## Secret handling
+## V2 deployment
 
-Store `BOT_PRIVATE_KEY` in Hardhat's encrypted keystore. Do not add it to any committed file.
+V2 accepts two constructor arguments:
 
-The repository contains only the public project wallet address. It does not contain and must never contain a private key or seed phrase.
+1. the initial primary administrator; and
+2. a recovery administrator, preferably a reviewed Safe or other EVM multisig.
 
-Mainnet deployment requires BOT for gas. The public issuer wallet supplied for the project is `0xAc7052141497866a8e3048B5Bb7a30c6418b5567`.
+For Testnet, `EDUTRUST_RECOVERY_ADMIN` defaults to the deployer when omitted so the workflow can be rehearsed. Use a separate Testnet multisig when testing the complete recovery path.
+
+```bash
+EDUTRUST_RECOVERY_ADMIN=0x... npm run deploy:v2:testnet
+```
+
+Mainnet refuses deployment unless the recovery address is configured and differs from the deployer:
+
+```bash
+EDUTRUST_RECOVERY_ADMIN=0x... \
+CONFIRM_MAINNET_DEPLOYMENT=yes \
+npm run deploy:v2:mainnet
+```
+
+After deployment, configure the frontend with the applicable address:
+
+```bash
+NEXT_PUBLIC_EDUTRUST_TESTNET_REGISTRY_ADDRESS=0x...
+NEXT_PUBLIC_EDUTRUST_MAINNET_REGISTRY_ADDRESS=0x...
+```
+
+Each network can be activated independently. Until an address is changed, that network continues using the deployed V1 registry.
+
+## V2 lifecycle model
+
+- An optional `expiresAt` timestamp makes a valid credential resolve as `Expired` after the deadline.
+- `renewCredential` and `correctCredential` create a new record and mark the original `Replaced`.
+- The original and replacement hashes link to each other, preserving the audit trail.
+- Only the original issuer or registry administrator can replace an active credential, and the caller must retain `ISSUER_ROLE`.
+- Revocation remains a misconduct/withdrawal lifecycle action and is not used for routine renewal or correction.
+
+## Administrator recovery and multisig
+
+`RECOVERY_ROLE` should be granted to an external multisig. The recovery wallet can propose a new primary administrator; the proposed address must accept. Acceptance grants administrator and issuer roles to the new wallet and removes both roles from the previous primary administrator.
+
+The contract does not implement its own signer threshold. Multisig policy, hardware-wallet requirements, and approver rotation belong in a reviewed EVM multisig such as Safe.
+
+## BOTScan verification
+
+V1 constructor:
+
+```bash
+npx hardhat verify etherscan --network botTestnet \
+  <CONTRACT_ADDRESS> <INITIAL_ADMIN_ADDRESS>
+```
+
+V2 constructor:
+
+```bash
+npx hardhat verify etherscan --network botTestnet \
+  <CONTRACT_ADDRESS> <INITIAL_ADMIN_ADDRESS> <RECOVERY_ADMIN_ADDRESS>
+```
+
+Replace `botTestnet` with `botMainnet` for Mainnet verification.
