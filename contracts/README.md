@@ -7,16 +7,16 @@ EduTrust contracts store credential identifiers, document fingerprints, lifecycl
 | Contract | State | Capabilities |
 | --- | --- | --- |
 | `EduTrustRegistry` | Deployed V1 | Permissioned issuance, revocation, fingerprint verification, issuer role management |
-| `EduTrustRegistryV2` | Deployment-ready | V1-compatible reads plus expiry, renewal, correction, replacement links, and recoverable administration |
+| `EduTrustRegistryV2` | Deployed and verified on Mainnet and Testnet | V1-compatible reads plus expiry, renewal, correction, replacement links, and recoverable administration |
 
 V1 is immutable and non-upgradeable. V2 must be deployed as a separate contract. The frontend detects `contractVersion()`; existing V1 credentials remain readable at their original registry address.
 
 ## BOT Chain networks
 
-| Network | Chain ID | RPC | Explorer |
-| --- | ---: | --- | --- |
-| Testnet | 968 | `https://rpc.bohr.life` | `https://scan.bohr.life` |
-| Mainnet | 677 | `https://rpc.botchain.ai` | `https://scan.botchain.ai` |
+| Network | Chain ID | RPC | Explorer | V2 contract |
+| --- | ---: | --- | --- | --- |
+| Testnet | 968 | `https://rpc.bohr.life` | `https://scan.bohr.life` | [`0xc3B4...ebf3`](https://scan.bohr.life/address/0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3#code) |
+| Mainnet | 677 | `https://rpc.botchain.ai` | `https://scan.botchain.ai` | [`0x3032...D48C`](https://scan.botchain.ai/address/0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C#code) |
 
 ## Local validation
 
@@ -81,14 +81,21 @@ CONFIRM_MAINNET_DEPLOYMENT=yes \
 npm run deploy:v2:mainnet
 ```
 
-After deployment, configure the frontend with the applicable address:
+The verified deployment records are:
+
+| Network | Contract | Deployment transaction |
+| --- | --- | --- |
+| Testnet | `0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3` | `0xc0fe4261aa73d52e080ef523812896c071e7c72f1dd937abe62bae2b2ad32eba` |
+| Mainnet | `0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C` | `0x74542f9dba59bfb3d3cb49ff51592aa234f28df86eecc260baeeca752c72703f` |
+
+Configure the frontend with the network-specific addresses:
 
 ```bash
-NEXT_PUBLIC_EDUTRUST_TESTNET_REGISTRY_ADDRESS=0x...
-NEXT_PUBLIC_EDUTRUST_MAINNET_REGISTRY_ADDRESS=0x...
+NEXT_PUBLIC_EDUTRUST_TESTNET_REGISTRY_ADDRESS=0xc3B43f3834b70a35da368D17C6bFCCb46FC8ebf3
+NEXT_PUBLIC_EDUTRUST_MAINNET_REGISTRY_ADDRESS=0x3032b61c1e44bb8b1CF41fF4345ad5Dc4DEAD48C
 ```
 
-Each network can be activated independently. Until an address is changed, that network continues using the deployed V1 registry.
+The immutable V1 registry remains available at its original address for audit history.
 
 ## V2 lifecycle model
 
