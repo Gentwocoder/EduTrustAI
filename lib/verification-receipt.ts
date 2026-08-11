@@ -24,14 +24,12 @@ function pdfText(value: string) {
   return ascii(value).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
 
-function splitValue(label: string, value: string, width = 72) {
-  const prefix = `${label}: `;
-  if (prefix.length + value.length <= width) return [`${prefix}${value}`];
-  const lines = [prefix.trimEnd()];
+function chunks(value: string, width = 76) {
+  const result: string[] = [];
   for (let index = 0; index < value.length; index += width) {
-    lines.push(`  ${value.slice(index, index + width)}`);
+    result.push(value.slice(index, index + width));
   }
-  return lines;
+  return result.length ? result : [""];
 }
 
 function buildPdf(data: VerificationReceiptData) {
@@ -42,49 +40,58 @@ function buildPdf(data: VerificationReceiptData) {
     ? new Date(data.expiresAt * 1000).toISOString()
     : "No expiry registered";
 
-  const lines = [
-    ["Verification result", data.status.toUpperCase()],
-    ["Institution", data.institution],
-    ["Issuer wallet", data.issuer],
-    ["Credential ID hash", data.credentialIdHash],
-    ["Document check", data.documentCheck],
-    ["Issued", issued],
-    ["Expires", expires],
-    ["Network", `${data.network} (chain ID ${data.chainId})`],
-    ["Registry contract", data.registryAddress],
-    ["Issuance transaction", data.transactionHash ?? "Not available from registry event history"],
-    ["Replacement credential", data.replacement || "None"],
-    ["Verified at", data.verifiedAt.toISOString()],
-  ].flatMap(([label, value]) => splitValue(label, value));
+  const rows = [
+    { label: "Verification result", value: data.status.toUpperCase() },
+    { label: "Institution", value: data.institution },
+    { label: "Issuer wallet", value: data.issuer },
+    { label: "Credential ID hash", value: data.credentialIdHash },
+    { label: "Document check", value: data.documentCheck },
+    { label: "Issued", value: issued },
+    { label: "Expires", value: expires },
+    { label: "Network", value: `${data.network} (chain ID ${data.chainId})` },
+    { label: "Registry contract", value: data.registryAddress },
+    { label: "Issuance transaction", value: data.transactionHash ?? "Not available from registry event history" },
+    { label: "Replacement credential", value: data.replacement || "None" },
+    { label: "Verified at", value: data.verifiedAt.toISOString() },
+  ];
 
-  const contentCommands = [
+  const commands = [
     "0.11 0.18 0.32 rg",
     "0 724 612 68 re f",
     "1 1 1 rg",
-    "BT /F2 20 Tf 42 758 Td (EduTrust Verification Receipt) Tj ET",
-    "BT /F1 9 Tf 42 739 Td (Independent BOT Chain registry result) Tj ET",
+    "BT /F2 20 Tf 0 Tc 42 758 Td (EduTrust Verification Receipt) Tj ET",
+    "BT /F1 9 Tf 0 Tc 42 739 Td (Independent BOT Chain registry result) Tj ET",
     "0.12 0.16 0.23 rg",
-    "BT /F2 11 Tf 42 694 Td (Verification details) Tj ET",
+    "BT /F2 11 Tf 0 Tc 42 694 Td (Verification details) Tj ET",
   ];
 
-  let y = 670;
-  for (const line of lines) {
-    const isContinuation = line.startsWith("  ");
-    contentCommands.push(
-      `BT /${isContinuation ? "F1" : "F1"} ${isContinuation ? 8.5 : 9.5} Tf 42 ${y} Td (${pdfText(line)}) Tj ET`,
-    );
-    y -= isContinuation ? 14 : 19;
+  let y = 666;
+  for (const row of rows) {
+    commands.push(`BT /F2 9 Tf 0 Tc 42 ${y} Td (${pdfText(row.label)}) Tj ET`);
+    if (row.value.length <= 54) {
+      commands.push(`BT /F1 9 Tf 0 Tc 188 ${y} Td (${pdfText(row.value)}) Tj ET`);
+      y -= 25;
+    } else {
+      y -= 15;
+      for (const line of chunks(row.value)) {
+        commands.push(`BT /F1 8.5 Tf 0 Tc 42 ${y} Td (${pdfText(line)}) Tj ET`);
+        y -= 13;
+      }
+      y -= 12;
+    }
+    commands.push("0.91 0.93 0.95 RG", `42 ${y + 10} m 570 ${y + 10} l S`);
   }
 
-  contentCommands.push(
-    "0.85 0.88 0.92 RG",
-    `42 ${Math.max(82, y - 4)} m 570 ${Math.max(82, y - 4)} l S`,
+  const footerLine = Math.max(68, y - 2);
+  commands.push(
+    "0.82 0.86 0.91 RG",
+    `42 ${footerLine} m 570 ${footerLine} l S`,
     "0.35 0.4 0.5 rg",
-    `BT /F1 8 Tf 42 ${Math.max(62, y - 24)} Td (This receipt records the result observed at verification time. Re-check the live registry before relying on it.) Tj ET`,
-    `BT /F1 8 Tf 42 ${Math.max(48, y - 38)} Td (Credential hashes are integrity evidence; this receipt does not reveal or certify private student data.) Tj ET`,
+    `BT /F1 8 Tf 0 Tc 42 ${footerLine - 20} Td (Point-in-time report. Re-check the live registry before relying on this receipt.) Tj ET`,
+    `BT /F1 8 Tf 0 Tc 42 ${footerLine - 35} Td (Credential hashes are integrity evidence. No private student data is included.) Tj ET`,
   );
 
-  const stream = contentCommands.join("\n");
+  const stream = commands.join("\n");
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
